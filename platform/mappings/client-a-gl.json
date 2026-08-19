@@ -1,0 +1,20 @@
+{
+  "name": "client-a-gl",
+  "sourceType": "csv",
+  "description": "CLIENT-A synthetic Tally-style GL export (phase0/sample-data)",
+  "dateFormat": "YYYY-MM-DD",
+  "fieldMap": {
+    "voucherId": "voucher_id",
+    "voucherType": "voucher_type",
+    "txnDate": "txn_date",
+    "createdAt": "created_at",
+    "accountCode": "account_code",
+    "accountName": "account_name",
+    "debit": "debit",
+    "credit": "credit",
+    "narration": "narration",
+    "source": "source",
+    "userId": "user_id",
+    "reversalOf": "reversal_of"
+  }
+}

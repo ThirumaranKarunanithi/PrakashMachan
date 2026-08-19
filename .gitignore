@@ -1,0 +1,16 @@
+# build output
+backend/target/
+frontend/dist/
+node_modules/
+
+# local dev database & logs
+backend/data/
+*.log
+
+# editor/OS noise
+.DS_Store
+Thumbs.db
+
+# local tooling
+.claude/
+frontend/tsconfig.tsbuildinfo

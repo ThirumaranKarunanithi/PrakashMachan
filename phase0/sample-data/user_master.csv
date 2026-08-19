@@ -1,0 +1,6 @@
+user_id,role,privileged
+ACCT-1,Accounts Executive,N
+ACCT-2,Accounts Executive,N
+ACCT-3,Senior Accountant,N
+MGR-1,Finance Manager,Y
+ADMIN-1,System Administrator,Y

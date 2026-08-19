@@ -1,0 +1,494 @@
+import { api } from './api';
+import { useCallback, useEffect, useState } from 'react';
+import type { Engagement, ImportBatch, ImportSummary, MappingProfile } from './types';
+import { inr } from './types';
+import RulesPanel from './RulesPanel';
+import GstPanel from './GstPanel';
+import VendorPanel from './VendorPanel';
+import BankPanel from './BankPanel';
+import WorkpaperPanel from './WorkpaperPanel';
+import EvidencePanel from './EvidencePanel';
+import AuthPanel from './AuthPanel';
+import BenfordPanel from './BenfordPanel';
+import ClientPortal from './ClientPortal';
+import NotificationBell from './NotificationBell';
+import type { Me } from './AuthPanel';
+
+export default function App() {
+  const [me, setMe] = useState<Me | null | undefined>(undefined); // undefined = loading
+  const [engagements, setEngagements] = useState<Engagement[]>([]);
+  const [selected, setSelected] = useState<Engagement | null>(null);
+  const [history, setHistory] = useState<ImportBatch[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [casesVersion, setCasesVersion] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m) => setMe(m))
+      .catch(() => setMe(null));
+  }, []);
+
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    setMe(null);
+    setSelected(null);
+    setEngagements([]);
+  }
+
+  const refresh = useCallback(async (selectId?: string) => {
+    try {
+      const list: Engagement[] = await (await fetch('/api/engagements')).json();
+      setEngagements(list);
+      const want = selectId ?? selected?.id;
+      const found = list.find((e) => e.id === want) ?? null;
+      setSelected(found);
+      if (found) {
+        const detail = await (await fetch(`/api/engagements/${found.id}`)).json();
+        setHistory(detail.imports as ImportBatch[]);
+      } else {
+        setHistory([]);
+      }
+    } catch {
+      setError('Cannot reach the backend. Is it running on :8080?');
+    }
+  }, [selected?.id]);
+
+  useEffect(() => { if (me) void refresh(); }, [me]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (me === undefined) return <main><p className="sub">Loading…</p></main>;
+  if (me && me.role === 'CLIENT') {
+    return <ClientPortal me={me} onLogout={() => void logout()} />;
+  }
+  if (me === null) {
+    return (
+      <main>
+        <header>
+          <h1>Ledger Integrity &amp; Audit Intelligence</h1>
+          <p className="sub">Multi-client audit &amp; GST risk-intelligence platform</p>
+        </header>
+        <AuthPanel onAuthed={setMe} />
+      </main>
+    );
+  }
+
+  return (
+    <main>
+      <header className="topbar">
+        <div>
+          <h1>Ledger Integrity &amp; Audit Intelligence</h1>
+          <p className="sub">Engagements · data import · completeness &amp; data quality (DAT-001…006)</p>
+        </div>
+        <div className="whoami">
+          <NotificationBell />
+          <span>{me.displayName} · <b>{me.firmName}</b> · {me.role}</span>
+          <button onClick={logout}>Sign out</button>
+        </div>
+      </header>
+      {error && <p className="error">{error}</p>}
+
+      <EngagementPanel
+        engagements={engagements}
+        selected={selected}
+        onSelect={(e) => { setSelected(e); void refresh(e?.id); }}
+        onCreated={(id) => void refresh(id)}
+      />
+
+      {selected && (
+        <>
+          <ImportPanel
+            engagement={selected}
+            history={history}
+            onImported={() => void refresh(selected.id)}
+          />
+          <RulesPanel key={`rules-${selected.id}-${casesVersion}`} engagementId={selected.id} />
+          <BenfordPanel engagementId={selected.id} onChanged={() => setCasesVersion((v) => v + 1)} />
+          <GstPanel engagementId={selected.id} onReconciled={() => setCasesVersion((v) => v + 1)} />
+          <VendorPanel engagementId={selected.id} />
+          <BankPanel engagementId={selected.id} onReconciled={() => setCasesVersion((v) => v + 1)} />
+          <EvidencePanel engagementId={selected.id} onChanged={() => setCasesVersion((v) => v + 1)} />
+          <WorkpaperPanel engagementId={selected.id} />
+        </>
+      )}
+    </main>
+  );
+}
+
+// ---------- engagement selection / creation ----------
+
+interface PortfolioRow {
+  engagementId: string;
+  populationCount: number;
+  openExceptions: number;
+  openHigh: number;
+  confirmedExceptions: number;
+  openCases: number;
+  totalCases: number;
+  overdueEvidence: number;
+  estimatedExposurePaise: number;
+  confirmedExposurePaise: number;
+  workpaperStatus: string;
+}
+
+function EngagementPanel(props: {
+  engagements: Engagement[];
+  selected: Engagement | null;
+  onSelect: (e: Engagement | null) => void;
+  onCreated: (id: string) => void;
+}) {
+  const [portfolio, setPortfolio] = useState<Map<string, PortfolioRow>>(new Map());
+  useEffect(() => {
+    fetch('/api/dashboard')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: PortfolioRow[]) => setPortfolio(new Map(rows.map((r) => [r.engagementId, r]))))
+      .catch(() => {});
+  }, [props.engagements]);
+  const [clientName, setClientName] = useState('');
+  const [fyStart, setFyStart] = useState('2024-04-01');
+  const [fyEnd, setFyEnd] = useState('2025-03-31');
+  const [closeDate, setCloseDate] = useState('2025-03-31');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function create() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/engagements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientName, fyStart, fyEnd, closeDate }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? `Create failed (${res.status})`);
+      setClientName('');
+      props.onCreated(body.id as string);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <h2>1 · Engagement</h2>
+      {props.engagements.length > 0 && (
+        <table>
+          <thead>
+            <tr><th></th><th>Client</th><th>Financial year</th><th>Population</th>
+              <th>Open (HIGH)</th><th>Open cases</th><th>Overdue evidence</th>
+              <th>Est. exposure</th><th>Confirmed</th><th>Workpaper</th></tr>
+          </thead>
+          <tbody>
+            {props.engagements.map((e) => {
+              const p = portfolio.get(e.id);
+              return (
+                <tr key={e.id} className={props.selected?.id === e.id ? 'selected' : ''}>
+                  <td>
+                    <input
+                      type="radio"
+                      name="engagement"
+                      checked={props.selected?.id === e.id}
+                      onChange={() => props.onSelect(e)}
+                    />
+                  </td>
+                  <td>{e.clientName}</td>
+                  <td>{e.fyStart} → {e.fyEnd}</td>
+                  <td className="num">{e.populationCount.toLocaleString('en-IN')}</td>
+                  <td className="num">{p ? <>{p.openExceptions} {p.openHigh > 0 && <span className="sev sev-high">{p.openHigh} HIGH</span>}</> : '—'}</td>
+                  <td className="num">{p ? `${p.openCases}/${p.totalCases}` : '—'}</td>
+                  <td className="num">{p ? (p.overdueEvidence > 0 ? <span className="sev sev-high">{p.overdueEvidence}</span> : '0') : '—'}</td>
+                  <td className="num">{p ? `₹ ${inr(p.estimatedExposurePaise)}` : '—'}</td>
+                  <td className="num">{p ? `₹ ${inr(p.confirmedExposurePaise)}` : '—'}</td>
+                  <td>{p?.workpaperStatus ?? '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      <p className="sub">Estimated exposure (open items) and confirmed misstatement are reported separately (RSK-005).</p>
+      {props.selected && (
+        <p className="sub">
+          <a href="#" style={{ color: 'var(--err)' }} onClick={async (ev) => {
+            ev.preventDefault();
+            if (!confirm(`Permanently delete engagement ${props.selected!.clientName} and ALL its data? This produces an auditable deletion record and cannot be undone.`)) return;
+            const res = await fetch(`/api/engagements/${props.selected!.id}`, { method: 'DELETE' });
+            if (res.ok) { props.onSelect(null); props.onCreated(''); }
+            else alert((await res.json()).error ?? 'Deletion failed');
+          }}>Delete selected engagement (ADMIN, SEC-006)</a>
+        </p>
+      )}
+      <details open={props.engagements.length === 0}>
+        <summary>New engagement</summary>
+        <div className="form-grid">
+          <label>Client name
+            <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="CLIENT-A" />
+          </label>
+          <label>FY start
+            <input type="date" value={fyStart} onChange={(e) => setFyStart(e.target.value)} />
+          </label>
+          <label>FY end
+            <input type="date" value={fyEnd} onChange={(e) => setFyEnd(e.target.value)} />
+          </label>
+          <label>Close date
+            <input type="date" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} />
+          </label>
+        </div>
+        <button onClick={create} disabled={busy || !clientName.trim()}>
+          {busy ? 'Creating…' : 'Create engagement'}
+        </button>
+        {error && <p className="error">{error}</p>}
+      </details>
+    </section>
+  );
+}
+
+// ---------- import ----------
+
+function ImportPanel(props: { engagement: Engagement; history: ImportBatch[]; onImported: () => void }) {
+  const [mappings, setMappings] = useState<MappingProfile[]>([]);
+  const [mapping, setMapping] = useState('');
+  const [glFile, setGlFile] = useState<File | null>(null);
+  const [tbFile, setTbFile] = useState<File | null>(null);
+  const [tallyFile, setTallyFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<ImportSummary | null>(null);
+
+  useEffect(() => {
+    fetch('/api/mappings')
+      .then((r) => r.json())
+      .then((list: MappingProfile[]) => {
+        setMappings(list);
+        if (list.length > 0) setMapping(list[0].name);
+      })
+      .catch(() => setError('Cannot load mapping profiles.'));
+  }, []);
+
+  async function runImport() {
+    if (!glFile || !tbFile || !mapping) return;
+    setBusy(true);
+    setError(null);
+    setSummary(null);
+    try {
+      const form = new FormData();
+      form.append('gl', glFile);
+      form.append('tb', tbFile);
+      form.append('mapping', mapping);
+      const isXlsx = glFile.name.toLowerCase().endsWith('.xlsx') || tbFile.name.toLowerCase().endsWith('.xlsx');
+      const endpoint = isXlsx ? 'imports/xlsx' : 'imports';
+      const res = await fetch(`/api/engagements/${props.engagement.id}/${endpoint}`, { method: 'POST', body: form });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? `Import failed (${res.status})`);
+      setSummary(body as ImportSummary);
+      props.onImported();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <section className="card">
+        <h2>2 · Import population — {props.engagement.clientName}</h2>
+        <div className="form-grid">
+          <label>Mapping profile
+            <select value={mapping} onChange={(e) => setMapping(e.target.value)}>
+              {mappings.map((m) => (
+                <option key={m.name} value={m.name}>{m.name} — {m.description ?? m.sourceType}</option>
+              ))}
+            </select>
+          </label>
+          <label>General ledger (CSV)
+            <input type="file" accept=".csv,.xlsx" onChange={(e) => setGlFile(e.target.files?.[0] ?? null)} />
+          </label>
+          <label>Trial balance (CSV)
+            <input type="file" accept=".csv,.xlsx" onChange={(e) => setTbFile(e.target.files?.[0] ?? null)} />
+          </label>
+        </div>
+        <button onClick={runImport} disabled={busy || !glFile || !tbFile || !mapping}>
+          {busy ? 'Importing…' : 'Import & validate'}
+        </button>
+
+        <div className="form-grid" style={{ marginTop: 14 }}>
+          <label>Tally Daybook XML (uses the optional TB above for DAT-002)
+            <input type="file" accept=".xml" onChange={(e) => setTallyFile(e.target.files?.[0] ?? null)} />
+          </label>
+        </div>
+        <button onClick={async () => {
+          if (!tallyFile) return;
+          setBusy(true);
+          setError(null);
+          setSummary(null);
+          try {
+            const form = new FormData();
+            form.append('xml', tallyFile);
+            if (tbFile) form.append('tb', tbFile);
+            const res = await fetch(`/api/engagements/${props.engagement.id}/imports/tally`, { method: 'POST', body: form });
+            const body = await res.json();
+            if (!res.ok) throw new Error(body.error ?? `Import failed (${res.status})`);
+            setSummary(body as ImportSummary);
+            props.onImported();
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          } finally {
+            setBusy(false);
+          }
+        }} disabled={busy || !tallyFile}>
+          {busy ? 'Importing…' : 'Import Tally XML'}
+        </button>
+        {error && <p className="error">{error}</p>}
+
+        {props.history.length > 0 && (
+          <>
+            <h3>Import history</h3>
+            <table>
+              <thead>
+                <tr><th>When</th><th>Profile</th><th>Rows</th><th>Added</th><th>Skipped</th><th>Issues</th><th>Balanced</th><th>TB</th><th></th></tr>
+              </thead>
+              <tbody>
+                {props.history.map((b) => (
+                  <tr key={b.id}>
+                    <td>{new Date(b.importedAt).toLocaleString('en-IN')}</td>
+                    <td>{b.profile}</td>
+                    <td className="num">{b.totalRows.toLocaleString('en-IN')}</td>
+                    <td className="num">{b.addedRows.toLocaleString('en-IN')}</td>
+                    <td className="num">{b.skippedRows.toLocaleString('en-IN')}</td>
+                    <td className="num">{b.issueCount}</td>
+                    <td>{b.balanced ? '✓' : '✗'}</td>
+                    <td>{b.tbAgrees ? '✓' : '✗'}</td>
+                    <td>
+                      <a href={api(`/api/engagements/${props.engagement.id}/imports/${b.id}/quality-report.csv`)} download>
+                        quality CSV
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </section>
+
+      {summary && <SummaryView engagementId={props.engagement.id} summary={summary} />}
+    </>
+  );
+}
+
+// ---------- import result ----------
+
+function SummaryView({ engagementId, summary }: { engagementId: string; summary: ImportSummary }) {
+  return (
+    <>
+      <section className="card">
+        <h2>3 · Completeness (DAT-002)</h2>
+        <div className={summary.readyForAnalysis ? 'banner ok' : 'banner warn'}>
+          {summary.readyForAnalysis
+            ? 'Population is balanced and agrees to the trial balance — ready for analysis.'
+            : 'Unexplained differences must be shown before analysis starts — review below.'}
+        </div>
+        <table>
+          <tbody>
+            <tr><th>Rows in upload</th><td>{summary.totalRows.toLocaleString('en-IN')} ({summary.cleanRows.toLocaleString('en-IN')} normalised)</td></tr>
+            <tr><th>Added to population</th><td>{summary.addedRows.toLocaleString('en-IN')} (skipped as already present: {summary.skippedRows.toLocaleString('en-IN')})</td></tr>
+            <tr><th>Engagement population</th><td>{summary.populationCount.toLocaleString('en-IN')} rows</td></tr>
+            <tr><th>Total debits</th><td className="num">₹ {inr(summary.totalDebitPaise)}</td></tr>
+            <tr><th>Total credits</th><td className="num">₹ {inr(summary.totalCreditPaise)}</td></tr>
+            <tr><th>Debits = credits</th><td>{summary.balanced ? '✓ Balanced' : `✗ Unbalanced (${summary.voucherImbalanceCount} voucher(s))`}</td></tr>
+            <tr><th>Trial balance</th><td>{summary.tbAgrees ? '✓ Agrees' : `✗ ${summary.tbDifferences.length} account difference(s)`}</td></tr>
+          </tbody>
+        </table>
+        {!summary.balanced && summary.voucherImbalances.length > 0 && (
+          <table>
+            <thead><tr><th>Voucher</th><th>Debit</th><th>Credit</th><th>Difference</th></tr></thead>
+            <tbody>
+              {summary.voucherImbalances.map((v) => (
+                <tr key={v.voucherId}>
+                  <td>{v.voucherId}</td>
+                  <td className="num">{inr(v.debit)}</td>
+                  <td className="num">{inr(v.credit)}</td>
+                  <td className="num">{inr(v.difference)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {!summary.tbAgrees && summary.tbDifferences.length > 0 && (
+          <table>
+            <thead><tr><th>Account</th><th>Ledger Dr</th><th>Ledger Cr</th><th>TB Dr</th><th>TB Cr</th><th>Difference</th></tr></thead>
+            <tbody>
+              {summary.tbDifferences.map((d) => (
+                <tr key={d.accountCode}>
+                  <td>{d.accountCode} {d.accountName}</td>
+                  <td className="num">{inr(d.ledgerDebit)}</td>
+                  <td className="num">{inr(d.ledgerCredit)}</td>
+                  <td className="num">{inr(d.tbDebit)}</td>
+                  <td className="num">{inr(d.tbCredit)}</td>
+                  <td className="num">{inr(d.difference)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>4 · Data quality (DAT-003)</h2>
+        {summary.issueCount === 0 ? (
+          <p className="ok-text">No data-quality issues found.</p>
+        ) : (
+          <>
+            <table>
+              <thead><tr><th>Issue type</th><th>Count</th></tr></thead>
+              <tbody>
+                {Object.entries(summary.issueSummary).map(([type, count]) => (
+                  <tr key={type}><td>{type}</td><td className="num">{count}</td></tr>
+                ))}
+              </tbody>
+            </table>
+            <table>
+              <thead><tr><th>Source</th><th>Type</th><th>Message</th></tr></thead>
+              <tbody>
+                {summary.issues.map((i, k) => (
+                  <tr key={k}>
+                    <td>{i.file}:{i.row}</td>
+                    <td>{i.type}</td>
+                    <td>{i.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {summary.issuesTruncated && <p className="sub">Showing first 500 issues — download the CSV for the full list.</p>}
+          </>
+        )}
+        <p>
+          <a href={api(`/api/engagements/${engagementId}/imports/${summary.importId}/quality-report.csv`)} download>
+            Download data-quality report (CSV)
+          </a>
+        </p>
+      </section>
+
+      <section className="card">
+        <h2>5 · Source manifest (DAT-001)</h2>
+        <table>
+          <thead><tr><th>File</th><th>Rows</th><th>Bytes</th><th>SHA-256</th></tr></thead>
+          <tbody>
+            {summary.files.map((f) => (
+              <tr key={f.file}>
+                <td>{f.file}</td>
+                <td className="num">{f.rows.toLocaleString('en-IN')}</td>
+                <td className="num">{f.bytes.toLocaleString('en-IN')}</td>
+                <td className="mono">{f.sha256}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="sub">Same source snapshot + same rule version ⇒ same results (BRD reproducibility principle).</p>
+      </section>
+    </>
+  );
+}

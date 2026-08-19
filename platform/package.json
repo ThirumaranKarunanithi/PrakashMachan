@@ -1,0 +1,16 @@
+{
+  "name": "@ledger-integrity/platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ledger Integrity & Audit Intelligence Platform — Phase 1 core (import & data quality)",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc && node --test \"dist/test/**/*.test.js\"",
+    "import": "tsc && node dist/cli.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^24.0.0"
+  }
+}

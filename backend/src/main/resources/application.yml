@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: ledger-integrity-platform
+  servlet:
+    multipart:
+      # BRD 19.2: at least 1M journal lines per engagement - raise as pilots demand
+      max-file-size: 200MB
+      max-request-size: 250MB
+  datasource:
+    # Dev database: file-based H2 in PostgreSQL compatibility mode.
+    # Production (e.g. Railway) switches to real PostgreSQL by setting these env vars only.
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:file:./data/platform;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.h2.Driver}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 200
+        order_inserts: true
+server:
+  port: ${PORT:8080}
+  servlet:
+    session:
+      cookie:
+        # Cross-site frontend (e.g. Hostinger -> Railway) needs SameSite=None + Secure
+        same-site: ${COOKIE_SAMESITE:lax}
+        secure: ${COOKIE_SECURE:false}
+
+app:
+  # Comma-separated list of allowed browser origins for the API, e.g. https://yourdomain.com
+  cors-allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}

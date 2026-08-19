@@ -1,0 +1,187 @@
+import { useCallback, useEffect, useState } from 'react';
+import { inr } from './types';
+
+interface Bucket {
+  digit: string;
+  observed: number;
+  observedPct: number;
+  expectedPct: number;
+  excess: number;
+}
+
+interface BenfordRun {
+  id: string;
+  population: string;
+  digitTest: string;
+  executedAt: string;
+  eligibleCount: number;
+  eligibleValuePaise: number;
+  excludedZeros: number;
+  excludedNegatives: number;
+  excludedReversals: number;
+  suitability: 'SUITABLE' | 'SUITABLE_WITH_CAUTION' | 'NOT_SUITABLE';
+  suitabilityReasons: string;
+  mad: number | null;
+  conformity: string;
+  result: { buckets: Bucket[]; topExcessDigit?: string; topContributorsByUser?: { user: string; count: number }[] };
+}
+
+interface DrillRow {
+  voucherId: string;
+  txnDate: string;
+  userId: string;
+  amountPaise: number;
+  narration: string;
+  sourceRefs: string;
+}
+
+const POPULATIONS = ['ALL_VOUCHERS', 'MANUAL_JOURNALS', 'PAYMENTS', 'PURCHASES', 'SALES'] as const;
+const TESTS = ['FIRST', 'SECOND', 'FIRST_TWO'] as const;
+
+export default function BenfordPanel({ engagementId, onChanged }: { engagementId: string; onChanged: () => void }) {
+  const [population, setPopulation] = useState<string>('ALL_VOUCHERS');
+  const [digitTest, setDigitTest] = useState<string>('FIRST');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [run, setRun] = useState<BenfordRun | null>(null);
+  const [drill, setDrill] = useState<{ digit: string; rows: DrillRow[] } | null>(null);
+
+  const loadLatest = useCallback(async () => {
+    const res = await fetch(`/api/engagements/${engagementId}/benford-runs`);
+    if (res.ok) {
+      const list = (await res.json()) as BenfordRun[];
+      if (list.length > 0) setRun(list[0]);
+    }
+  }, [engagementId]);
+
+  useEffect(() => { void loadLatest(); }, [loadLatest]);
+
+  async function execute() {
+    setBusy(true);
+    setError(null);
+    setDrill(null);
+    try {
+      const res = await fetch(`/api/engagements/${engagementId}/benford-runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ population, digitTest }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? `Run failed (${res.status})`);
+      setRun(body as BenfordRun);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function drilldown(digit: string) {
+    if (!run) return;
+    const res = await fetch(`/api/benford-runs/${run.id}/drilldown?digit=${digit}`);
+    if (res.ok) setDrill({ digit, rows: await res.json() });
+  }
+
+  const suitClass = run?.suitability === 'SUITABLE' ? 'ok' : run?.suitability === 'SUITABLE_WITH_CAUTION' ? 'warn' : 'warn';
+  const maxPct = run ? Math.max(...run.result.buckets.map((b) => Math.max(b.observedPct, b.expectedPct)), 1) : 1;
+
+  return (
+    <section className="card">
+      <h2>4 · Benford analysis</h2>
+      <div className="form-grid">
+        <label>Population (BEN-001)
+          <select value={population} onChange={(e) => setPopulation(e.target.value)}>
+            {POPULATIONS.map((p) => <option key={p} value={p}>{p.replaceAll('_', ' ')}</option>)}
+          </select>
+        </label>
+        <label>Digit test
+          <select value={digitTest} onChange={(e) => setDigitTest(e.target.value)}>
+            {TESTS.map((t) => <option key={t} value={t}>{t.replaceAll('_', ' ')}</option>)}
+          </select>
+        </label>
+      </div>
+      <button onClick={execute} disabled={busy}>{busy ? 'Running…' : 'Run Benford analysis'}</button>
+      {error && <p className="error">{error}</p>}
+
+      {run && (
+        <>
+          {/* the suitability verdict outranks the digit chart (BRD §16.4) */}
+          <div className={`banner ${suitClass}`}>
+            {run.suitability.replaceAll('_', ' ')} — {run.suitabilityReasons}
+          </div>
+          <table>
+            <tbody>
+              <tr><th>Population</th><td>{run.population} · {run.digitTest} digit test · {run.eligibleCount.toLocaleString('en-IN')} eligible amounts · ₹ {inr(run.eligibleValuePaise)}</td></tr>
+              <tr><th>Exclusions (reported, never silent)</th><td>{run.excludedZeros} zero · {run.excludedNegatives} negative · {run.excludedReversals} reversal-linked</td></tr>
+              <tr><th>Conformity</th><td>
+                {run.conformity === 'NOT_ASSESSED'
+                  ? 'Not assessed — population unsuitable; contributes zero risk points.'
+                  : `${run.conformity} (MAD ${run.mad?.toFixed(4)})`}
+              </td></tr>
+            </tbody>
+          </table>
+
+          <p className="sub">
+            In plain language: in naturally occurring amounts, smaller leading digits appear more often
+            (1 ≈ 30%, 9 ≈ 4.6%). A deviation is a clue about which entries deserve review — never proof of anything.
+            Click a row to see the exact contributing transactions.
+          </p>
+
+          <div className="benford-table-wrap">
+            <table>
+              <thead><tr><th>Digit</th><th>Observed</th><th>Observed %</th><th>Expected %</th><th>Excess</th><th>Distribution</th></tr></thead>
+              <tbody>
+                {run.result.buckets.map((b) => (
+                  <tr key={b.digit}
+                      className={run.result.topExcessDigit === b.digit ? 'selected' : ''}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => void drilldown(b.digit)}>
+                    <td><strong>{b.digit}</strong></td>
+                    <td className="num">{b.observed.toLocaleString('en-IN')}</td>
+                    <td className="num">{b.observedPct.toFixed(2)}</td>
+                    <td className="num">{b.expectedPct.toFixed(2)}</td>
+                    <td className="num">{b.excess > 0 ? '+' + b.excess : ''}</td>
+                    <td style={{ minWidth: 160 }}>
+                      <div className="bar obs" style={{ width: `${(b.observedPct / maxPct) * 100}%` }} />
+                      <div className="bar exp" style={{ width: `${(b.expectedPct / maxPct) * 100}%` }} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="sub"><span className="bar obs" style={{ display: 'inline-block', width: 24 }} /> observed · <span className="bar exp" style={{ display: 'inline-block', width: 24 }} /> expected</p>
+
+          {run.result.topContributorsByUser && run.result.topContributorsByUser.length > 0 && (
+            <p className="sub">
+              Digit {run.result.topExcessDigit} contributors by user:{' '}
+              {run.result.topContributorsByUser.map((c) => `${c.user} (${c.count})`).join(', ')}
+            </p>
+          )}
+
+          {drill && (
+            <>
+              <h3>Transactions beginning with {drill.digit} ({drill.rows.length}{drill.rows.length === 500 ? '+' : ''})</h3>
+              <table>
+                <thead><tr><th>Voucher</th><th>Date</th><th>User</th><th>Amount</th><th>Narration</th></tr></thead>
+                <tbody>
+                  {drill.rows.slice(0, 50).map((r) => (
+                    <tr key={r.voucherId}>
+                      <td>{r.voucherId}</td>
+                      <td>{r.txnDate}</td>
+                      <td>{r.userId}</td>
+                      <td className="num">₹ {inr(r.amountPaise)}</td>
+                      <td>{r.narration}<div className="sub mono">{r.sourceRefs}</div></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {drill.rows.length > 50 && <p className="sub">Showing first 50 of {drill.rows.length}.</p>}
+            </>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
