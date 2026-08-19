@@ -32,12 +32,16 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final CurrentUser currentUser;
 
+    private final boolean demoAutologin;
+
     public AuthController(FirmRepository firms, AppUserRepository users,
-                          PasswordEncoder passwordEncoder, CurrentUser currentUser) {
+                          PasswordEncoder passwordEncoder, CurrentUser currentUser,
+                          @org.springframework.beans.factory.annotation.Value("${app.demo-autologin:false}") boolean demoAutologin) {
         this.firms = firms;
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.currentUser = currentUser;
+        this.demoAutologin = demoAutologin;
     }
 
     public record RegisterFirmRequest(@NotBlank String firmName, @NotBlank String displayName,
@@ -70,6 +74,33 @@ public class AuthController {
         return new MeDto(user.getEmail(), user.getDisplayName(), user.getRole().name(),
                 firm.getId().toString(), firm.getName());
     }
+
+    /**
+     * Demo mode (APP_DEMO_AUTOLOGIN): signs the visitor straight into a shared demo firm,
+     * creating it on first use. PARTNER role, so demo visitors cannot secure-delete data.
+     * Disable by setting APP_DEMO_AUTOLOGIN=false — the endpoint then returns 404.
+     */
+    @PostMapping("/demo")
+    @Transactional
+    public MeDto demo(HttpServletRequest http) {
+        if (!demoAutologin) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Demo mode is not enabled.");
+        }
+        AppUser user = users.findByEmailIgnoreCase(DEMO_EMAIL).orElseGet(() -> {
+            Firm firm = firms.findByNameIgnoreCase(DEMO_FIRM_NAME).orElseGet(() ->
+                    firms.save(new Firm(UUID.randomUUID(), DEMO_FIRM_NAME, Instant.now())));
+            return users.save(new AppUser(UUID.randomUUID(), firm.getId(), DEMO_EMAIL,
+                    passwordEncoder.encode(UUID.randomUUID().toString()), "Demo Partner",
+                    AppUser.Role.PARTNER, Instant.now()));
+        });
+        establishSession(user, http);
+        Firm firm = firms.findById(user.getFirmId()).orElseThrow();
+        return new MeDto(user.getEmail(), user.getDisplayName(), user.getRole().name(),
+                firm.getId().toString(), firm.getName());
+    }
+
+    private static final String DEMO_FIRM_NAME = "Demo Firm";
+    private static final String DEMO_EMAIL = "demo@demo.firm";
 
     @PostMapping("/login")
     public MeDto login(@RequestBody LoginRequest req, HttpServletRequest http) {

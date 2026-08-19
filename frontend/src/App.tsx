@@ -25,7 +25,14 @@ export default function App() {
   useEffect(() => {
     fetch('/api/auth/me')
       .then((r) => (r.ok ? r.json() : null))
-      .then((m) => setMe(m))
+      .then(async (m) => {
+        if (m) return setMe(m);
+        // demo mode: sign straight into the shared demo firm; fall back to the login screen
+        const demo = await fetch('/api/auth/demo', { method: 'POST' })
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null);
+        setMe(demo);
+      })
       .catch(() => setMe(null));
   }, []);
 
