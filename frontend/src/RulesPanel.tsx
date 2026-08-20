@@ -193,7 +193,6 @@ function CaseView({ c, onSaved }: { c: InvestigationCase; onSaved: () => Promise
   }
   const [priority, setPriority] = useState(String(c.effectivePriority));
   const [reason, setReason] = useState(c.overrideReason ?? '');
-  const [reviewer, setReviewer] = useState(c.overriddenBy ?? '');
   const [error, setError] = useState<string | null>(null);
 
   async function saveOverride(clear: boolean) {
@@ -202,7 +201,7 @@ function CaseView({ c, onSaved }: { c: InvestigationCase; onSaved: () => Promise
       const res = await fetch(`/api/cases/${c.id}/priority`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(clear ? { priority: null } : { priority: Number(priority), reason, reviewer }),
+        body: JSON.stringify(clear ? { priority: null } : { priority: Number(priority), reason }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `Failed (${res.status})`);
@@ -250,8 +249,7 @@ function CaseView({ c, onSaved }: { c: InvestigationCase; onSaved: () => Promise
             <div className="btn-row" style={{ marginTop: 6 }}>
               <input type="number" style={{ width: 80 }} value={priority} onChange={(e) => setPriority(e.target.value)} />
               <input placeholder="Recorded reason (required)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
-              <input placeholder="Reviewer" value={reviewer} onChange={(e) => setReviewer(e.target.value)} />
-              <button onClick={() => void saveOverride(false)} disabled={!reason.trim() || !reviewer.trim()}>Save</button>
+              <button onClick={() => void saveOverride(false)} disabled={!reason.trim()}>Save</button>
               {c.overriddenPriority != null && <button onClick={() => void saveOverride(true)}>Clear override</button>}
             </div>
           )}
@@ -277,7 +275,6 @@ function SamplesBlock({ engagementId }: { engagementId: string }) {
   const [method, setMethod] = useState('RISK_RANKED');
   const [size, setSize] = useState('10');
   const [seed, setSeed] = useState('');
-  const [selectedBy, setSelectedBy] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -292,7 +289,7 @@ function SamplesBlock({ engagementId }: { engagementId: string }) {
       const res = await fetch(`/api/engagements/${engagementId}/samples`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ method, size: Number(size), seed: seed ? Number(seed) : null, selectedBy }),
+        body: JSON.stringify({ method, size: Number(size), seed: seed ? Number(seed) : null }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `Failed (${res.status})`);
@@ -311,8 +308,7 @@ function SamplesBlock({ engagementId }: { engagementId: string }) {
         </select>
         <input type="number" style={{ width: 70 }} value={size} onChange={(e) => setSize(e.target.value)} />
         {method === 'RANDOM' && <input placeholder="Seed (optional)" style={{ width: 120 }} value={seed} onChange={(e) => setSeed(e.target.value)} />}
-        <input placeholder="Selected by" value={selectedBy} onChange={(e) => setSelectedBy(e.target.value)} />
-        <button onClick={select} disabled={!selectedBy.trim()}>Select sample</button>
+        <button onClick={select}>Select sample</button>
       </div>
       {error && <p className="error">{error}</p>}
       {samples.map((s, i) => (
@@ -417,6 +413,7 @@ function ExceptionRow({ c, onSaved }: { c: ExceptionCase; onSaved: () => Promise
         {c.reason}
         <div className="sub mono">{c.sourceRefs}</div>
         {c.decidedBy && <div className="sub">Decided by {c.decidedBy} · {c.decidedAt && new Date(c.decidedAt).toLocaleString('en-IN')}</div>}
+        <DecisionHistory exceptionId={c.id} />
       </td>
       <td className="decision">
         <select value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -434,5 +431,33 @@ function ExceptionRow({ c, onSaved }: { c: ExceptionCase; onSaved: () => Promise
         {error && <p className="error">{error}</p>}
       </td>
     </tr>
+  );
+}
+
+function DecisionHistory({ exceptionId }: { exceptionId: string }) {
+  const [entries, setEntries] = useState<
+    { fromStatus: string | null; toStatus: string; note: string | null; decidedBy: string; decidedAt: string }[] | null
+  >(null);
+
+  async function load() {
+    if (entries !== null) { setEntries(null); return; } // toggle closed
+    const res = await fetch(`/api/exceptions/${exceptionId}/history`);
+    setEntries(res.ok ? await res.json() : []);
+  }
+
+  return (
+    <div className="sub">
+      <a href="#" onClick={(e) => { e.preventDefault(); void load(); }}>
+        {entries === null ? 'History ▸' : 'History ▾'}
+      </a>
+      {entries !== null && (entries.length === 0
+        ? <div>No status changes yet.</div>
+        : entries.map((h, i) => (
+            <div key={i}>
+              {new Date(h.decidedAt).toLocaleString('en-IN')} · {h.fromStatus ?? 'NEW'} → {h.toStatus} · {h.decidedBy}
+              {h.note && <> — {h.note}</>}
+            </div>
+          )))}
+    </div>
   );
 }

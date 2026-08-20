@@ -31,16 +31,20 @@ public class EvidenceService {
     private final EngagementRepository engagements;
     private final NotificationService notificationService;
 
+    private final com.ledgerintegrity.platform.rules.ExceptionDecisionService decisions;
+
     public EvidenceService(EvidenceRequestRepository requests,
                            EvidenceDocumentRepository documents,
                            ExceptionCaseRepository exceptions,
                            EngagementRepository engagements,
-                           NotificationService notificationService) {
+                           NotificationService notificationService,
+                           com.ledgerintegrity.platform.rules.ExceptionDecisionService decisions) {
         this.requests = requests;
         this.documents = documents;
         this.exceptions = exceptions;
         this.engagements = engagements;
         this.notificationService = notificationService;
+        this.decisions = decisions;
     }
 
     @Transactional
@@ -55,12 +59,12 @@ public class EvidenceService {
                 exceptionId, title.trim(), description, requestedBy.trim(), dueDate, Instant.now());
         requests.save(request);
 
-        // the exception is now waiting on the client (BRD §3.3 "Information required")
+        // the exception is now waiting on the client (BRD §3.3 "Information required");
+        // the transition goes through the history service so the prior note survives
         if (exception.getStatus() == ExceptionCase.Status.NEW
                 || exception.getStatus() == ExceptionCase.Status.UNDER_REVIEW) {
-            exception.decide(ExceptionCase.Status.INFO_REQUIRED,
-                    "Evidence requested: " + title.trim(), requestedBy.trim(), Instant.now());
-            exceptions.save(exception);
+            decisions.transition(exception, ExceptionCase.Status.INFO_REQUIRED,
+                    "Evidence requested: " + title.trim(), requestedBy.trim());
         }
         return request;
     }

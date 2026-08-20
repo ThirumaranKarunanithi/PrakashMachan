@@ -34,6 +34,7 @@ public class GstController {
     private final com.ledgerintegrity.platform.gst.persist.Gstr3bSummaryRepository g3b;
     private final com.ledgerintegrity.platform.gst.persist.GstManualMatchRepository manualMatches;
     private final TenantGuard guard;
+    private final com.ledgerintegrity.platform.auth.CurrentUser currentUser;
 
     public GstController(GstImportService importService,
                          GstReconciliationService reconciliation,
@@ -44,9 +45,11 @@ public class GstController {
                          com.ledgerintegrity.platform.gst.persist.Gstr1InvoiceRepository g1,
                          com.ledgerintegrity.platform.gst.persist.Gstr3bSummaryRepository g3b,
                          com.ledgerintegrity.platform.gst.persist.GstManualMatchRepository manualMatches,
-                         TenantGuard guard) {
+                         TenantGuard guard,
+                         com.ledgerintegrity.platform.auth.CurrentUser currentUser) {
         this.manualMatches = manualMatches;
         this.guard = guard;
+        this.currentUser = currentUser;
         this.importService = importService;
         this.reconciliation = reconciliation;
         this.matches = matches;
@@ -187,7 +190,7 @@ public class GstController {
     public record ManualLinkRequest(GstMatchResult.Side side,
                                     String booksGstin, String booksInvoiceNo,
                                     String portalGstin, String portalInvoiceNo,
-                                    String reason, String decidedBy) {}
+                                    String reason) {}
 
     public record ManualLinkDto(String id, String side, String booksGstin, String booksInvoiceNo,
                                 String portalGstin, String portalInvoiceNo,
@@ -207,7 +210,7 @@ public class GstController {
             return ManualLinkDto.from(reconciliation.manualLink(id,
                     req.side() == null ? GstMatchResult.Side.PURCHASE : req.side(),
                     req.booksGstin(), req.booksInvoiceNo(), req.portalGstin(), req.portalInvoiceNo(),
-                    req.reason(), req.decidedBy()));
+                    req.reason(), currentUser.actorLabel()));
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (org.springframework.dao.DataIntegrityViolationException e) {

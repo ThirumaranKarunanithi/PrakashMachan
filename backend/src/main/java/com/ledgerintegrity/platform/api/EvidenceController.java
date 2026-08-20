@@ -29,19 +29,23 @@ public class EvidenceController {
     private final EvidenceDocumentRepository documents;
     private final TenantGuard guard;
 
+    private final com.ledgerintegrity.platform.auth.CurrentUser currentUser;
+
     public EvidenceController(EvidenceService service,
                               EvidenceRequestRepository requests,
                               EvidenceDocumentRepository documents,
-                              TenantGuard guard) {
+                              TenantGuard guard,
+                              com.ledgerintegrity.platform.auth.CurrentUser currentUser) {
         this.guard = guard;
         this.service = service;
         this.requests = requests;
         this.documents = documents;
+        this.currentUser = currentUser;
     }
 
-    public record CreateRequest(String title, String description, String requestedBy, LocalDate dueDate) {}
+    public record CreateRequest(String title, String description, LocalDate dueDate) {}
 
-    public record DecisionRequest(EvidenceRequest.Status decision, String note, String decidedBy) {}
+    public record DecisionRequest(EvidenceRequest.Status decision, String note) {}
 
     public record DocumentDto(String id, int version, String fileName, String contentType, long sizeBytes,
                               String sha256, String uploadedBy, Instant uploadedAt) {
@@ -69,7 +73,7 @@ public class EvidenceController {
         guard.exception(exceptionId);
         try {
             EvidenceRequest r = service.createRequest(exceptionId, req.title(), req.description(),
-                    req.requestedBy(), req.dueDate());
+                    currentUser.actorLabel(), req.dueDate());
             return RequestDto.from(r, List.of());
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
@@ -86,13 +90,12 @@ public class EvidenceController {
 
     @PostMapping(value = "/evidence-requests/{id}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public DocumentDto upload(@PathVariable UUID id,
-                              @RequestParam("file") MultipartFile file,
-                              @RequestParam(value = "uploadedBy", required = false) String uploadedBy) throws IOException {
+                              @RequestParam("file") MultipartFile file) throws IOException {
         guard.evidenceRequest(id);
         try {
             return DocumentDto.from(service.upload(id,
                     file.getOriginalFilename() == null ? "document" : file.getOriginalFilename(),
-                    file.getContentType(), file.getBytes(), uploadedBy));
+                    file.getContentType(), file.getBytes(), currentUser.actorLabel()));
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (IllegalStateException e) {
@@ -105,7 +108,7 @@ public class EvidenceController {
     public RequestDto decide(@PathVariable UUID id, @RequestBody DecisionRequest req) {
         guard.evidenceRequest(id);
         try {
-            EvidenceRequest r = service.decide(id, req.decision(), req.note(), req.decidedBy());
+            EvidenceRequest r = service.decide(id, req.decision(), req.note(), currentUser.actorLabel());
             return RequestDto.from(r, service.documentsOf(r.getId()));
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());

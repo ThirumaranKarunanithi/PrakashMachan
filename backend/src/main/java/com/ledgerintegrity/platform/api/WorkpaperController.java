@@ -24,10 +24,14 @@ public class WorkpaperController {
     private final WorkpaperRepository workpapers;
     private final TenantGuard guard;
 
-    public WorkpaperController(WorkpaperService service, WorkpaperRepository workpapers, TenantGuard guard) {
+    private final com.ledgerintegrity.platform.auth.CurrentUser currentUser;
+
+    public WorkpaperController(WorkpaperService service, WorkpaperRepository workpapers, TenantGuard guard,
+                               com.ledgerintegrity.platform.auth.CurrentUser currentUser) {
         this.service = service;
         this.workpapers = workpapers;
         this.guard = guard;
+        this.currentUser = currentUser;
     }
 
     public record WorkpaperDto(String id, int version, String title, String status, String contentSha256,
@@ -44,7 +48,7 @@ public class WorkpaperController {
         }
     }
 
-    public record SignRequest(@NotNull Workpaper.Role role, @NotNull String name) {}
+    public record SignRequest(@NotNull Workpaper.Role role) {}
 
     @PostMapping("/engagements/{id}/workpapers")
     public WorkpaperDto generate(@PathVariable UUID id) {
@@ -66,7 +70,7 @@ public class WorkpaperController {
     public WorkpaperDto sign(@PathVariable UUID id, @RequestBody SignRequest req) {
         guard.workpaper(id);
         try {
-            return WorkpaperDto.from(service.sign(id, req.role(), req.name()));
+            return WorkpaperDto.from(service.sign(id, req.role(), currentUser.actorLabel()));
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (IllegalStateException e) {

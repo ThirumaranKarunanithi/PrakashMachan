@@ -257,7 +257,9 @@ public class BenfordService {
                 .sorted(Comparator.comparingLong(Voucher::amountPaise).reversed())
                 .limit(15)
                 .toList();
-        long exposure = contributors.stream().mapToLong(Voucher::amountPaise).sum();
+        // A dispersion statistic is a review signal, not a monetary claim: the exception
+        // carries NO rupee exposure. The contributor amounts stay in the drill-down.
+        long exposure = 0;
         String reason = "Digit distribution of the " + run.getPopulation() + " population ("
                 + run.getEligibleCount() + " amounts, " + run.getDigitTest() + " digit test) deviates from the "
                 + "Benford expectation (MAD " + String.format("%.4f", mad) + ", " + conformity + ")."

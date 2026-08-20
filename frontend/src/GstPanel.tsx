@@ -41,7 +41,6 @@ function ManualLinkForm({ engagementId, onLinked }: { engagementId: string; onLi
   const [portalGstin, setPortalGstin] = useState('');
   const [portalInvoiceNo, setPortalInvoiceNo] = useState('');
   const [reason, setReason] = useState('');
-  const [decidedBy, setDecidedBy] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,7 +51,7 @@ function ManualLinkForm({ engagementId, onLinked }: { engagementId: string; onLi
       const res = await fetch(`/api/engagements/${engagementId}/gst/manual-links`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ side, booksGstin, booksInvoiceNo, portalGstin, portalInvoiceNo, reason, decidedBy }),
+        body: JSON.stringify({ side, booksGstin, booksInvoiceNo, portalGstin, portalInvoiceNo, reason }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `Failed (${res.status})`);
@@ -78,9 +77,8 @@ function ManualLinkForm({ engagementId, onLinked }: { engagementId: string; onLi
         <label>Portal GSTIN<input value={portalGstin} onChange={(e) => setPortalGstin(e.target.value)} /></label>
         <label>Portal invoice no<input value={portalInvoiceNo} onChange={(e) => setPortalInvoiceNo(e.target.value)} /></label>
         <label>Reason (required)<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. supplier filed with a typo'd number" /></label>
-        <label>Decided by<input value={decidedBy} onChange={(e) => setDecidedBy(e.target.value)} /></label>
       </div>
-      <button onClick={submit} disabled={busy || !booksGstin || !booksInvoiceNo || !portalGstin || !portalInvoiceNo || !reason.trim() || !decidedBy.trim()}>
+      <button onClick={submit} disabled={busy || !booksGstin || !booksInvoiceNo || !portalGstin || !portalInvoiceNo || !reason.trim()}>
         Record manual link
       </button>
       {error && <p className="error">{error}</p>}

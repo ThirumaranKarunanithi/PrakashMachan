@@ -32,4 +32,10 @@ public class CurrentUser {
     public UUID firmId() {
         return require().getFirmId();
     }
+
+    /** Attribution label for records: always session-derived, never client-supplied. */
+    public String actorLabel() {
+        AppUser u = require();
+        return u.getDisplayName() + " <" + u.getEmail() + ">";
+    }
 }

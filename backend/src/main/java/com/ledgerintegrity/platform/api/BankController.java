@@ -32,13 +32,17 @@ public class BankController {
     private final BankLedgerLineRepository ledger;
     private final TenantGuard guard;
 
+    private final com.ledgerintegrity.platform.auth.CurrentUser currentUser;
+
     public BankController(BankImportService importService,
                           BankReconciliationService reconciliation,
                           BankMatchResultRepository matches,
                           BankStatementLineRepository statements,
                           BankLedgerLineRepository ledger,
-                          TenantGuard guard) {
+                          TenantGuard guard,
+                          com.ledgerintegrity.platform.auth.CurrentUser currentUser) {
         this.guard = guard;
+        this.currentUser = currentUser;
         this.importService = importService;
         this.reconciliation = reconciliation;
         this.matches = matches;
@@ -107,7 +111,7 @@ public class BankController {
                 .limit(500).map(MatchDto::from).toList();
     }
 
-    public record ManualLinkRequest(String statementReference, String voucherId, String reason, String decidedBy) {}
+    public record ManualLinkRequest(String statementReference, String voucherId, String reason) {}
 
     public record ManualLinkDto(String statementReference, String voucherId, String reason,
                                 String decidedBy, java.time.Instant decidedAt) {}
@@ -118,7 +122,7 @@ public class BankController {
         guard.engagement(id);
         try {
             var m = reconciliation.manualLink(id, req.statementReference(), req.voucherId(),
-                    req.reason(), req.decidedBy());
+                    req.reason(), currentUser.actorLabel());
             return new ManualLinkDto(m.getStatementReference(), m.getVoucherId(), m.getReason(),
                     m.getDecidedBy(), m.getDecidedAt());
         } catch (IllegalArgumentException e) {

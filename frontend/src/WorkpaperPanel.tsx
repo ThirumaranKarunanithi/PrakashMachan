@@ -22,7 +22,6 @@ const NEXT_ROLE: Record<Workpaper['status'], { role: string; label: string } | n
 
 export default function WorkpaperPanel({ engagementId }: { engagementId: string }) {
   const [list, setList] = useState<Workpaper[]>([]);
-  const [signer, setSigner] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,14 +49,14 @@ export default function WorkpaperPanel({ engagementId }: { engagementId: string 
 
   async function sign(w: Workpaper) {
     const next = NEXT_ROLE[w.status];
-    if (!next || !signer.trim()) return;
+    if (!next) return;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch(`/api/workpapers/${w.id}/sign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: next.role, name: signer.trim() }),
+        body: JSON.stringify({ role: next.role }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `Sign failed (${res.status})`);
@@ -74,10 +73,7 @@ export default function WorkpaperPanel({ engagementId }: { engagementId: string 
       <h2>9 · Workpapers</h2>
       <div className="btn-row">
         <button onClick={generate} disabled={busy}>Generate workpaper version</button>
-        <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          Signing as
-          <input value={signer} onChange={(e) => setSigner(e.target.value)} placeholder="Your name" />
-        </label>
+        <span className="sub">Sign-offs are recorded under your login identity.</span>
       </div>
       {error && <p className="error">{error}</p>}
 
@@ -99,7 +95,7 @@ export default function WorkpaperPanel({ engagementId }: { engagementId: string 
                   <td className="mono">{w.contentSha256.slice(0, 12)}…</td>
                   <td>
                     {next && (
-                      <button onClick={() => sign(w)} disabled={busy || !signer.trim()} title={!signer.trim() ? 'Enter your name first' : ''}>
+                      <button onClick={() => sign(w)} disabled={busy}>
                         {next.label}
                       </button>
                     )}

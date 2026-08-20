@@ -82,6 +82,13 @@ class DashboardIntegrationTest {
         assertEquals(49_00_000_00L, row.confirmedExposurePaise()); // RSK-005: kept apart
         assertTrue(row.estimatedExposurePaise() > 0);
         assertNotEquals(row.estimatedExposurePaise(), row.confirmedExposurePaise());
+        // exposure de-duplicates per case: the roll-up must be BELOW the naive per-signal sum,
+        // because several rules flag the same vouchers (e.g. the 49L pair carries 8+ signals)
+        long naiveSum = all.stream()
+                .filter(x -> x.getStatus() != ExceptionCase.Status.CONFIRMED && x.getId() != confirmed.getId())
+                .mapToLong(ExceptionCase::getExposurePaise).sum();
+        assertTrue(row.estimatedExposurePaise() < naiveSum,
+                "roll-up " + row.estimatedExposurePaise() + " should dedupe below naive sum " + naiveSum);
         assertEquals(1, row.overdueEvidence());
         assertEquals("v1 DRAFT", row.workpaperStatus());
         assertTrue(row.openCases() > 0 && row.openCases() <= row.totalCases());

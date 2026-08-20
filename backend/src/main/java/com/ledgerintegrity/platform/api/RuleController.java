@@ -34,11 +34,16 @@ public class RuleController {
     private final com.ledgerintegrity.platform.rules.SamplingService samplingService;
     private final com.ledgerintegrity.platform.rules.CaseTimelineService timelineService;
 
+    private final com.ledgerintegrity.platform.rules.ExceptionDecisionService decisions;
+    private final com.ledgerintegrity.platform.auth.CurrentUser currentUser;
+
     public RuleController(RuleEngineService engine, RuleRunRepository runs,
                           ExceptionCaseRepository exceptions, InvestigationCaseRepository cases,
                           TenantGuard guard,
                           com.ledgerintegrity.platform.rules.SamplingService samplingService,
-                          com.ledgerintegrity.platform.rules.CaseTimelineService timelineService) {
+                          com.ledgerintegrity.platform.rules.CaseTimelineService timelineService,
+                          com.ledgerintegrity.platform.rules.ExceptionDecisionService decisions,
+                          com.ledgerintegrity.platform.auth.CurrentUser currentUser) {
         this.samplingService = samplingService;
         this.timelineService = timelineService;
         this.engine = engine;
@@ -46,6 +51,13 @@ public class RuleController {
         this.exceptions = exceptions;
         this.cases = cases;
         this.guard = guard;
+        this.decisions = decisions;
+        this.currentUser = currentUser;
+    }
+
+    /** Attribution comes from the authenticated session, never from request input. */
+    private String actor() {
+        return currentUser.actorLabel();
     }
 
     // ---------- DTOs ----------
@@ -95,7 +107,7 @@ public class RuleController {
         }
     }
 
-    public record DecisionRequest(@NotNull ExceptionCase.Status status, String note, String decidedBy) {}
+    public record DecisionRequest(@NotNull ExceptionCase.Status status, String note) {}
 
     // ---------- endpoints ----------
 
@@ -181,7 +193,7 @@ public class RuleController {
                 .body(csv);
     }
 
-    public record SampleRequest(String method, Integer size, Long seed, String selectedBy) {}
+    public record SampleRequest(String method, Integer size, Long seed) {}
 
     public record SampleDto(String id, String method, int sampleSize, Long seed, String voucherIds,
                             String selectedBy, Instant createdAt) {}
@@ -194,7 +206,7 @@ public class RuleController {
             var method = com.ledgerintegrity.platform.rules.persist.SampleSelection.Method
                     .valueOf(req.method() == null ? "RANDOM" : req.method().toUpperCase());
             var s = samplingService.select(id, method, req.size() == null ? 25 : req.size(),
-                    req.seed(), req.selectedBy());
+                    req.seed(), actor());
             return new SampleDto(s.getId().toString(), s.getMethod(), s.getSampleSize(), s.getSeed(),
                     s.getVoucherIds(), s.getSelectedBy(), s.getCreatedAt());
         } catch (IllegalArgumentException e) {
@@ -218,14 +230,14 @@ public class RuleController {
         return timelineService.timeline(c);
     }
 
-    public record PriorityOverrideRequest(Integer priority, String reason, String reviewer) {}
+    public record PriorityOverrideRequest(Integer priority, String reason) {}
 
     /** RSK-004: a reviewer changes a case's review priority without touching rule results. */
     @PatchMapping("/cases/{id}/priority")
     public CaseDto overridePriority(@PathVariable UUID id, @RequestBody PriorityOverrideRequest req) {
         var c = guard.investigationCase(id);
         try {
-            c.overridePriority(req.priority(), req.reason(), req.reviewer(), Instant.now());
+            c.overridePriority(req.priority(), req.reason(), actor(), Instant.now());
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
@@ -253,9 +265,19 @@ public class RuleController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "A documented reason is required for status " + req.status());
         }
-        e.decide(req.status(), req.note(), req.decidedBy(), Instant.now());
-        exceptions.save(e);
-        return ExceptionDto.from(e);
+        return ExceptionDto.from(decisions.transition(e, req.status(), req.note(), actor()));
+    }
+
+    public record HistoryDto(String fromStatus, String toStatus, String note, String decidedBy, Instant decidedAt) {}
+
+    /** Append-only decision history: every status change with who, when, and why. */
+    @GetMapping("/exceptions/{id}/history")
+    public List<HistoryDto> history(@PathVariable UUID id) {
+        ExceptionCase e = guard.exception(id);
+        return decisions.historyOf(e.getId()).stream()
+                .map(h -> new HistoryDto(h.getFromStatus() == null ? null : h.getFromStatus().name(),
+                        h.getToStatus().name(), h.getNote(), h.getDecidedBy(), h.getDecidedAt()))
+                .toList();
     }
 
     @ExceptionHandler(ResponseStatusException.class)

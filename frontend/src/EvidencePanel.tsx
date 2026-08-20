@@ -41,7 +41,6 @@ export default function EvidencePanel({ engagementId, onChanged }: { engagementI
   const [exceptionId, setExceptionId] = useState('');
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [requestedBy, setRequestedBy] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -66,7 +65,7 @@ export default function EvidencePanel({ engagementId, onChanged }: { engagementI
       const res = await fetch(`/api/exceptions/${exceptionId}/evidence-requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, requestedBy, dueDate: dueDate || null }),
+        body: JSON.stringify({ title, dueDate: dueDate || null }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `Create failed (${res.status})`);
@@ -97,11 +96,8 @@ export default function EvidencePanel({ engagementId, onChanged }: { engagementI
         <label>Due date
           <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
         </label>
-        <label>Requested by
-          <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Your name" />
-        </label>
       </div>
-      <button onClick={create} disabled={busy || !exceptionId || !title.trim() || !requestedBy.trim()}>
+      <button onClick={create} disabled={busy || !exceptionId || !title.trim()}>
         Create evidence request
       </button>
       {error && <p className="error">{error}</p>}
@@ -161,7 +157,6 @@ function ClientAccessForm({ engagementId }: { engagementId: string }) {
 function RequestView({ r, onChanged }: { r: RequestDto; onChanged: () => Promise<void> }) {
   const [file, setFile] = useState<File | null>(null);
   const [note, setNote] = useState(r.decisionNote ?? '');
-  const [decider, setDecider] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -192,7 +187,7 @@ function RequestView({ r, onChanged }: { r: RequestDto; onChanged: () => Promise
     void call(`/api/evidence-requests/${r.id}/decision`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision, note, decidedBy: decider || 'auditor' }),
+      body: JSON.stringify({ decision, note }),
     });
   }
 
@@ -234,7 +229,6 @@ function RequestView({ r, onChanged }: { r: RequestDto; onChanged: () => Promise
             {r.status === 'RESPONDED' && (
               <>
                 <input placeholder="Sufficiency reason (required)" value={note} onChange={(e) => setNote(e.target.value)} />
-                <input placeholder="Decided by" value={decider} onChange={(e) => setDecider(e.target.value)} />
                 <button onClick={() => decide('ACCEPTED')} disabled={busy || !note.trim()}>Accept</button>
                 <button onClick={() => decide('REJECTED')} disabled={busy || !note.trim()}>Reject</button>
               </>
