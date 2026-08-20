@@ -6,7 +6,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
@@ -43,8 +42,9 @@ public class Workpaper {
     @Enumerated(EnumType.STRING)
     private Status status = Status.DRAFT;
 
-    @Lob
-    @Column(nullable = false)
+    // plain TEXT, not @Lob: Hibernate maps @Lob String to a PostgreSQL large object
+    // (oid), which cannot be read in auto-commit mode and 500s every list endpoint
+    @Column(nullable = false, columnDefinition = "text")
     private String contentHtml;
 
     @Column(nullable = false, length = 64)

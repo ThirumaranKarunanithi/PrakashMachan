@@ -6,7 +6,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
@@ -76,8 +75,8 @@ public class BenfordRun {
     @Enumerated(EnumType.STRING)
     private Conformity conformity = Conformity.NOT_ASSESSED;
 
-    @Lob
-    @Column(nullable = false)
+    // plain TEXT, not @Lob (PostgreSQL oid trap - see Workpaper.contentHtml)
+    @Column(nullable = false, columnDefinition = "text")
     private String resultJson;
 
     private UUID createdExceptionId;
