@@ -247,7 +247,7 @@ function CaseView({ c, onSaved }: { c: InvestigationCase; onSaved: () => Promise
           )}
           {showOverride && (
             <div className="btn-row" style={{ marginTop: 6 }}>
-              <input type="number" style={{ width: 80 }} value={priority} onChange={(e) => setPriority(e.target.value)} />
+              <input type="number" min={0} max={100} step={1} style={{ width: 80 }} value={priority} onChange={(e) => setPriority(e.target.value)} />
               <input placeholder="Recorded reason (required)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
               <button onClick={() => void saveOverride(false)} disabled={!reason.trim()}>Save</button>
               {c.overriddenPriority != null && <button onClick={() => void saveOverride(true)}>Clear override</button>}
@@ -285,6 +285,10 @@ function SamplesBlock({ engagementId }: { engagementId: string }) {
 
   async function select() {
     setError(null);
+    if (!Number.isInteger(Number(size)) || Number(size) < 1 || Number(size) > 500) {
+      setError('Sample size must be a whole number between 1 and 500.');
+      return;
+    }
     try {
       const res = await fetch(`/api/engagements/${engagementId}/samples`, {
         method: 'POST',
@@ -306,7 +310,7 @@ function SamplesBlock({ engagementId }: { engagementId: string }) {
           <option value="RISK_RANKED">Risk-ranked</option>
           <option value="RANDOM">Random (seeded)</option>
         </select>
-        <input type="number" style={{ width: 70 }} value={size} onChange={(e) => setSize(e.target.value)} />
+        <input type="number" min={1} max={500} step={1} style={{ width: 70 }} value={size} onChange={(e) => setSize(e.target.value)} />
         {method === 'RANDOM' && <input placeholder="Seed (optional)" style={{ width: 120 }} value={seed} onChange={(e) => setSeed(e.target.value)} />}
         <button onClick={select}>Select sample</button>
       </div>
@@ -359,9 +363,9 @@ function MethodologyBlock() {
   return (
     <div style={{ padding: '8px 0' }}>
       <div className="btn-row">
-        <label>HIGH <input type="number" style={{ width: 60 }} value={high} onChange={(e) => setHigh(e.target.value)} /></label>
-        <label>MEDIUM <input type="number" style={{ width: 60 }} value={medium} onChange={(e) => setMedium(e.target.value)} /></label>
-        <label>LOW <input type="number" style={{ width: 60 }} value={low} onChange={(e) => setLow(e.target.value)} /></label>
+        <label>HIGH <input type="number" min={0} step={1} style={{ width: 60 }} value={high} onChange={(e) => setHigh(e.target.value)} /></label>
+        <label>MEDIUM <input type="number" min={0} step={1} style={{ width: 60 }} value={medium} onChange={(e) => setMedium(e.target.value)} /></label>
+        <label>LOW <input type="number" min={0} step={1} style={{ width: 60 }} value={low} onChange={(e) => setLow(e.target.value)} /></label>
       </div>
       <div className="btn-row">
         <input placeholder="Workpaper header title" style={{ flex: 1, minWidth: 220 }} value={headerTitle} onChange={(e) => setHeaderTitle(e.target.value)} />

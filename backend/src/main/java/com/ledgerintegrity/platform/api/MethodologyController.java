@@ -32,7 +32,7 @@ public class MethodologyController {
                               int version, String updatedBy) {}
 
     public record TemplateUpdate(String headerTitle, String footerNote, Boolean includeGst,
-                                 Boolean includeBank, Boolean includeAuditTrail, String updatedBy) {}
+                                 Boolean includeBank, Boolean includeAuditTrail) {}
 
     /** AWP-001: the firm workpaper template. */
     @GetMapping("/workpaper-template")
@@ -45,9 +45,8 @@ public class MethodologyController {
 
     @PutMapping("/workpaper-template")
     public TemplateDto updateTemplate(@RequestBody TemplateUpdate req) {
-        if (req.headerTitle() == null || req.headerTitle().isBlank()
-                || req.updatedBy() == null || req.updatedBy().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "headerTitle and updatedBy are required.");
+        if (req.headerTitle() == null || req.headerTitle().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "headerTitle is required.");
         }
         UUID firmId = currentUser.firmId();
         int next = templates.findTopByFirmIdOrderByVersionDesc(firmId).map(t -> t.getVersion() + 1).orElse(1);
@@ -56,7 +55,7 @@ public class MethodologyController {
                 req.includeGst() == null || req.includeGst(),
                 req.includeBank() == null || req.includeBank(),
                 req.includeAuditTrail() == null || req.includeAuditTrail(),
-                req.updatedBy().trim(), Instant.now());
+                currentUser.actorLabel(), Instant.now());
         templates.save(t);
         return new TemplateDto(t.getHeaderTitle(), t.getFooterNote(), t.isIncludeGst(),
                 t.isIncludeBank(), t.isIncludeAuditTrail(), t.getVersion(), t.getUpdatedBy());
@@ -65,7 +64,7 @@ public class MethodologyController {
     public record WeightsDto(int highWeight, int mediumWeight, int lowWeight,
                              int version, String updatedBy, Instant updatedAt) {}
 
-    public record UpdateRequest(Integer highWeight, Integer mediumWeight, Integer lowWeight, String updatedBy) {}
+    public record UpdateRequest(Integer highWeight, Integer mediumWeight, Integer lowWeight) {}
 
     @GetMapping("/risk-weights")
     public WeightsDto get() {
@@ -85,15 +84,12 @@ public class MethodologyController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Weights must satisfy high >= medium >= low >= 0.");
         }
-        if (req.updatedBy() == null || req.updatedBy().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "updatedBy is required.");
-        }
         UUID firmId = currentUser.firmId();
         int next = configs.findTopByFirmIdOrderByVersionDesc(firmId)
                 .map(c -> c.getVersion() + 1).orElse(1);
         RiskWeightConfig c = new RiskWeightConfig(UUID.randomUUID(), firmId, next,
                 req.highWeight(), req.mediumWeight(), req.lowWeight(),
-                req.updatedBy().trim(), Instant.now());
+                currentUser.actorLabel(), Instant.now());
         configs.save(c);
         return new WeightsDto(c.getHighWeight(), c.getMediumWeight(), c.getLowWeight(),
                 c.getVersion(), c.getUpdatedBy(), c.getUpdatedAt());

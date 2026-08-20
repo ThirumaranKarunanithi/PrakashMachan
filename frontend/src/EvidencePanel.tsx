@@ -95,6 +95,8 @@ export default function EvidencePanel({ engagementId, onChanged }: { engagementI
         </label>
         <label>Due date
           <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          {dueDate && dueDate < new Date().toISOString().slice(0, 10) &&
+            <span className="sub">This due date is in the past — the request will be overdue immediately.</span>}
         </label>
       </div>
       <button onClick={create} disabled={busy || !exceptionId || !title.trim()}>

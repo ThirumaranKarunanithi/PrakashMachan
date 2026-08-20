@@ -47,6 +47,9 @@ public class AppUser {
     @Column(nullable = false)
     private Instant createdAt;
 
+    /** Force a password change on next login (set for admin-provisioned client accounts). */
+    private boolean passwordResetRequired;
+
     protected AppUser() {} // JPA
 
     public AppUser(UUID id, UUID firmId, String email, String passwordHash,
@@ -75,4 +78,7 @@ public class AppUser {
     public String getDisplayName() { return displayName; }
     public Role getRole() { return role; }
     public Instant getCreatedAt() { return createdAt; }
+    public boolean isPasswordResetRequired() { return passwordResetRequired; }
+    public void setPasswordResetRequired(boolean v) { this.passwordResetRequired = v; }
+    public void setPasswordHash(String hash) { this.passwordHash = hash; }
 }

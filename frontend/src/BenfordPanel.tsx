@@ -134,7 +134,7 @@ export default function BenfordPanel({ engagementId, onChanged }: { engagementId
               <tbody>
                 {run.result.buckets.map((b) => (
                   <tr key={b.digit}
-                      className={run.result.topExcessDigit === b.digit ? 'selected' : ''}
+                      className={(drill?.digit ?? run.result.topExcessDigit) === b.digit ? 'selected' : ''}
                       style={{ cursor: 'pointer' }}
                       onClick={() => void drilldown(b.digit)}>
                     <td><strong>{b.digit}</strong></td>
@@ -153,12 +153,28 @@ export default function BenfordPanel({ engagementId, onChanged }: { engagementId
           </div>
           <p className="sub"><span className="bar obs" style={{ display: 'inline-block', width: 24 }} /> observed · <span className="bar exp" style={{ display: 'inline-block', width: 24 }} /> expected</p>
 
-          {run.result.topContributorsByUser && run.result.topContributorsByUser.length > 0 && (
-            <p className="sub">
-              Digit {run.result.topExcessDigit} contributors by user:{' '}
-              {run.result.topContributorsByUser.map((c) => `${c.user} (${c.count})`).join(', ')}
-            </p>
-          )}
+          {(() => {
+            // QA P2: the contributor line must follow the SELECTED digit, not stay
+            // frozen on the max-excess default — otherwise digit-4 transactions get
+            // attributed to digit-2's users when reading top-to-bottom
+            if (drill && drill.digit !== run.result.topExcessDigit) {
+              const byUser = new Map<string, number>();
+              for (const r of drill.rows) byUser.set(r.userId, (byUser.get(r.userId) ?? 0) + 1);
+              const top = [...byUser.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+              return top.length > 0 && (
+                <p className="sub">
+                  Digit {drill.digit} contributors by user:{' '}
+                  {top.map(([u, n]) => `${u} (${n})`).join(', ')}
+                </p>
+              );
+            }
+            return run.result.topContributorsByUser && run.result.topContributorsByUser.length > 0 && (
+              <p className="sub">
+                Digit {run.result.topExcessDigit} contributors by user:{' '}
+                {run.result.topContributorsByUser.map((c) => `${c.user} (${c.count})`).join(', ')}
+              </p>
+            );
+          })()}
 
           {drill && (
             <>

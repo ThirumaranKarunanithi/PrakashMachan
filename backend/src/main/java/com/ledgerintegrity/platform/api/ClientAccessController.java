@@ -53,6 +53,8 @@ public class ClientAccessController {
         AppUser client = new AppUser(UUID.randomUUID(), engagement.getFirmId(),
                 req.email().trim().toLowerCase(), passwordEncoder.encode(req.password()),
                 req.displayName().trim(), AppUser.Role.CLIENT, engagement.getId(), Instant.now());
+        // the admin-chosen password is provisional: the client must replace it on first login
+        client.setPasswordResetRequired(true);
         users.save(client);
         return new ClientUserDto(client.getEmail(), client.getDisplayName(), client.getCreatedAt());
     }

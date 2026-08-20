@@ -243,13 +243,15 @@ public class GstController {
             csvRows.add(List.of(r.side(), r.category(), r.reference(), r.invoiceOrPeriod(), r.party(),
                     r.booksTaxablePaise() == null ? "" : String.format("%.2f", r.booksTaxablePaise() / 100.0),
                     r.portalTaxablePaise() == null ? "" : String.format("%.2f", r.portalTaxablePaise() / 100.0),
+                    r.booksTaxPaise() == null ? "" : String.format("%.2f", r.booksTaxPaise() / 100.0),
+                    r.portalTaxPaise() == null ? "" : String.format("%.2f", r.portalTaxPaise() / 100.0),
                     String.format("%.2f", r.taxEffectPaise() / 100.0),
                     r.suggestedAction(),
                     "", "")); // owner + due date: assigned by the GST professional
         }
         String csv = com.ledgerintegrity.platform.common.Csv.serialize(
                 List.of("side", "category", "gstin_or_period", "invoice_or_period", "party",
-                        "books_taxable_inr", "portal_taxable_inr", "tax_effect_inr",
+                        "books_taxable_inr", "portal_taxable_inr", "books_tax_inr", "portal_tax_inr", "tax_effect_inr",
                         "suggested_action", "owner", "due_date"),
                 csvRows);
         return ResponseEntity.ok()

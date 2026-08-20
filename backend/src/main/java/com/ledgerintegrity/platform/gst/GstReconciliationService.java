@@ -460,6 +460,7 @@ public class GstReconciliationService {
 
     public record CorrectionRow(String side, String category, String reference, String invoiceOrPeriod,
                                 String party, Long booksTaxablePaise, Long portalTaxablePaise,
+                                Long booksTaxPaise, Long portalTaxPaise,
                                 long taxEffectPaise, String suggestedAction) {}
 
     /**
@@ -474,6 +475,7 @@ public class GstReconciliationService {
                 if (m.getCategory() == Category.MATCHED) continue;
                 rows.add(new CorrectionRow(side.name(), m.getCategory().name(), m.getGstin(), m.getInvoiceNo(),
                         m.getPartyName(), m.getBooksTaxablePaise(), m.getG2bTaxablePaise(),
+                        m.getBooksTaxPaise(), m.getG2bTaxPaise(),
                         m.getTaxDiffPaise(), suggestedAction(side, m.getCategory())));
             }
         }
@@ -488,8 +490,11 @@ public class GstReconciliationService {
             Gstr3bSummary d = g3bRepo.findByEngagementIdAndPeriod(engagementId, e.getKey()).orElse(null);
             long diff = d == null ? e.getValue()[1] : Math.abs(e.getValue()[1] - d.getTaxPaise());
             if (diff <= VALUE_TOLERANCE_PAISE) continue;
+            // QA P3: the figures DRIVING the difference are the period's tax totals -
+            // GSTR-1 tax vs 3B declared tax - so they must appear in the row
             rows.add(new CorrectionRow("OUTWARD_SUMMARY", "GSTR1_VS_3B", e.getKey(), e.getKey(), "",
-                    e.getValue()[0], d == null ? null : d.getTaxablePaise(), diff,
+                    e.getValue()[0], d == null ? null : d.getTaxablePaise(),
+                    e.getValue()[1], d == null ? null : d.getTaxPaise(), diff,
                     "Reconcile GSTR-3B for the period; discharge or adjust the differential after professional review."));
         }
         rows.sort((a, b) -> Long.compare(b.taxEffectPaise(), a.taxEffectPaise()));

@@ -6,6 +6,7 @@ export interface Me {
   role: string;
   firmId: string;
   firmName: string;
+  passwordResetRequired?: boolean;
 }
 
 export default function AuthPanel({ onAuthed }: { onAuthed: (me: Me) => void }) {

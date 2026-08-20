@@ -32,6 +32,7 @@ const STATUS_TEXT: Record<ClientRequest['status'], string> = {
 export default function ClientPortal({ me, onLogout }: { me: Me; onLogout: () => void }) {
   const [requests, setRequests] = useState<ClientRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [resetDone, setResetDone] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch('/api/client/requests');
@@ -42,6 +43,11 @@ export default function ClientPortal({ me, onLogout }: { me: Me; onLogout: () =>
   useEffect(() => { void load(); }, [load]);
 
   const open = requests.filter((r) => r.status === 'OPEN' || r.status === 'REJECTED');
+
+  // the initial password was chosen by the audit firm — it must be replaced before use
+  if (me.passwordResetRequired && !resetDone) {
+    return <ForcePasswordReset onDone={() => setResetDone(true)} onLogout={onLogout} />;
+  }
 
   return (
     <main>
@@ -129,5 +135,65 @@ function RequestCard({ r, onChanged }: { r: ClientRequest; onChanged: () => Prom
         {error && <p className="error">{error}</p>}
       </div>
     </div>
+  );
+}
+
+function ForcePasswordReset({ onDone, onLogout }: { onDone: () => void; onLogout: () => void }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function change() {
+    setError(null);
+    if (next !== confirm) { setError('The new passwords do not match.'); return; }
+    setBusy(true);
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: current, newPassword: next }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? `Failed (${res.status})`);
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main>
+      <header>
+        <h1>Set your password</h1>
+        <p className="sub">
+          Your account was created with a temporary password chosen by your audit firm.
+          Please set your own password before continuing — nobody else should know it.
+        </p>
+      </header>
+      <section className="card">
+        <div className="form-grid">
+          <label>Temporary password
+            <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+          </label>
+          <label>New password (min 8 characters)
+            <input type="password" value={next} onChange={(e) => setNext(e.target.value)} />
+          </label>
+          <label>Confirm new password
+            <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          </label>
+        </div>
+        <div className="btn-row">
+          <button onClick={change} disabled={busy || !current || next.length < 8 || !confirm}>
+            {busy ? 'Saving…' : 'Set password'}
+          </button>
+          <button onClick={onLogout}>Sign out</button>
+        </div>
+        {error && <p className="error">{error}</p>}
+      </section>
+    </main>
   );
 }

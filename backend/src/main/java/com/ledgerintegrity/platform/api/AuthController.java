@@ -49,7 +49,8 @@ public class AuthController {
 
     public record LoginRequest(@NotBlank String email, @NotBlank String password) {}
 
-    public record MeDto(String email, String displayName, String role, String firmId, String firmName) {}
+    public record MeDto(String email, String displayName, String role, String firmId, String firmName,
+                        boolean passwordResetRequired) {}
 
     /** Self-serve tenant creation: a new firm plus its first (admin) user. */
     @PostMapping("/register-firm")
@@ -72,7 +73,7 @@ public class AuthController {
         users.save(user);
         establishSession(user, http);
         return new MeDto(user.getEmail(), user.getDisplayName(), user.getRole().name(),
-                firm.getId().toString(), firm.getName());
+                firm.getId().toString(), firm.getName(), user.isPasswordResetRequired());
     }
 
     /**
@@ -96,7 +97,7 @@ public class AuthController {
         establishSession(user, http);
         Firm firm = firms.findById(user.getFirmId()).orElseThrow();
         return new MeDto(user.getEmail(), user.getDisplayName(), user.getRole().name(),
-                firm.getId().toString(), firm.getName());
+                firm.getId().toString(), firm.getName(), user.isPasswordResetRequired());
     }
 
     private static final String DEMO_FIRM_NAME = "Demo Firm";
@@ -110,7 +111,7 @@ public class AuthController {
         establishSession(user, http);
         Firm firm = firms.findById(user.getFirmId()).orElseThrow();
         return new MeDto(user.getEmail(), user.getDisplayName(), user.getRole().name(),
-                firm.getId().toString(), firm.getName());
+                firm.getId().toString(), firm.getName(), user.isPasswordResetRequired());
     }
 
     @GetMapping("/me")
@@ -118,7 +119,7 @@ public class AuthController {
         AppUser user = currentUser.require();
         Firm firm = firms.findById(user.getFirmId()).orElseThrow();
         return new MeDto(user.getEmail(), user.getDisplayName(), user.getRole().name(),
-                firm.getId().toString(), firm.getName());
+                firm.getId().toString(), firm.getName(), user.isPasswordResetRequired());
     }
 
     @PostMapping("/logout")
@@ -126,6 +127,28 @@ public class AuthController {
         SecurityContextHolder.clearContext();
         if (http.getSession(false) != null) http.getSession(false).invalidate();
         return Map.of("status", "logged out");
+    }
+
+    public record ChangePasswordRequest(@NotBlank String currentPassword, @NotBlank String newPassword) {}
+
+    /** First-login reset for provisioned accounts, and self-service change for everyone. */
+    @PostMapping("/change-password")
+    @Transactional
+    public Map<String, String> changePassword(@RequestBody ChangePasswordRequest req) {
+        AppUser user = currentUser.require();
+        if (!passwordEncoder.matches(req.currentPassword(), user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The current password is incorrect.");
+        }
+        if (req.newPassword().length() < 8) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be at least 8 characters.");
+        }
+        if (req.newPassword().equals(req.currentPassword())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must differ from the current one.");
+        }
+        user.setPasswordHash(passwordEncoder.encode(req.newPassword()));
+        user.setPasswordResetRequired(false);
+        users.save(user);
+        return Map.of("status", "password changed");
     }
 
     private static void establishSession(AppUser user, HttpServletRequest http) {
