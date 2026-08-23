@@ -92,7 +92,9 @@ export default function BenfordPanel({ engagementId, onChanged }: { engagementId
   }
 
   const suitClass = run?.suitability === 'SUITABLE' ? 'ok' : run?.suitability === 'SUITABLE_WITH_CAUTION' ? 'warn' : 'warn';
-  const maxPct = run ? Math.max(...run.result.buckets.map((b) => Math.max(b.observedPct, b.expectedPct)), 1) : 1;
+  // runs stored before the storage migration can carry an empty result - never crash on them
+  const buckets = run?.result?.buckets ?? [];
+  const maxPct = Math.max(...buckets.map((b) => Math.max(b.observedPct, b.expectedPct)), 1);
 
   return (
     <section className="card">
@@ -130,7 +132,10 @@ export default function BenfordPanel({ engagementId, onChanged }: { engagementId
             </tbody>
           </table>
 
-          {run.result.note && <p className="sub" style={{ fontStyle: 'italic' }}>{run.result.note}</p>}
+          {buckets.length === 0 && (
+            <p className="sub">This run's stored detail predates a storage migration — run the analysis again to regenerate it.</p>
+          )}
+          {run.result?.note && <p className="sub" style={{ fontStyle: 'italic' }}>{run.result.note}</p>}
           <p className="sub">
             In plain language: in naturally occurring amounts, smaller leading digits appear more often
             (1 ≈ 30%, 9 ≈ 4.6%). A deviation is a clue about which entries deserve review — never proof of anything.
@@ -141,9 +146,9 @@ export default function BenfordPanel({ engagementId, onChanged }: { engagementId
             <table>
               <thead><tr><th>Digit</th><th>Observed</th><th>Observed %</th><th>Expected %</th><th title="Summation test: this bucket's share of total VALUE — a spike marks large-amount concentration">Value %</th><th>Excess</th><th>Distribution</th></tr></thead>
               <tbody>
-                {run.result.buckets.map((b) => (
+                {buckets.map((b) => (
                   <tr key={b.digit}
-                      className={(drill?.digit ?? run.result.topExcessDigit) === b.digit ? 'selected' : ''}
+                      className={(drill?.digit ?? run.result?.topExcessDigit) === b.digit ? 'selected' : ''}
                       style={{ cursor: 'pointer' }}
                       onClick={() => void drilldown(b.digit)}>
                     <td><strong>{b.digit}</strong></td>
@@ -167,7 +172,7 @@ export default function BenfordPanel({ engagementId, onChanged }: { engagementId
             // QA P2: the contributor line must follow the SELECTED digit, not stay
             // frozen on the max-excess default — otherwise digit-4 transactions get
             // attributed to digit-2's users when reading top-to-bottom
-            if (drill && drill.digit !== run.result.topExcessDigit) {
+            if (drill && drill.digit !== run.result?.topExcessDigit) {
               const byUser = new Map<string, number>();
               for (const r of drill.rows) byUser.set(r.userId, (byUser.get(r.userId) ?? 0) + 1);
               const top = [...byUser.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
@@ -178,7 +183,7 @@ export default function BenfordPanel({ engagementId, onChanged }: { engagementId
                 </p>
               );
             }
-            return run.result.topContributorsByUser && run.result.topContributorsByUser.length > 0 && (
+            return run.result?.topContributorsByUser && run.result.topContributorsByUser.length > 0 && (
               <p className="sub">
                 Digit {run.result.topExcessDigit} contributors by user:{' '}
                 {run.result.topContributorsByUser.map((c) => `${c.user} (${c.count})`).join(', ')}
