@@ -1,3 +1,5 @@
+import { api } from './api';
+import { inr } from './types';
 import { useCallback, useEffect, useState } from 'react';
 
 interface ImportOutcome {
@@ -119,6 +121,67 @@ export default function VendorPanel({ engagementId }: { engagementId: string }) 
         </>
       )}
       {error && <p className="error">{error}</p>}
+      <VendorRiskReport engagementId={engagementId} />
     </section>
+  );
+}
+
+/** BRD §8 extension: per-vendor composite risk with capped, explainable components. */
+function VendorRiskReport({ engagementId }: { engagementId: string }) {
+  const [rows, setRows] = useState<{
+    vendorId: string; name: string; gstin: string; invoiceCount: number;
+    purchaseValuePaise: number; spendSharePct: number; itcAtStakePaise: number;
+    score: number; components: Record<string, number>; notes: string[];
+  }[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    if (rows) { setRows(null); return; }
+    setError(null);
+    const res = await fetch(`/api/engagements/${engagementId}/vendor-data/risk`);
+    if (res.ok) setRows(await res.json());
+    else setError((await res.json()).error ?? 'Could not load the vendor risk report.');
+  }
+
+  const COMPONENT_LABELS: Record<string, string> = {
+    exceptions: 'Signals', gstCompliance: 'GST', behaviour: 'Master data',
+    concentration: 'Concentration', amountPatterns: 'Amounts',
+  };
+
+  return (
+    <>
+      <h3>Vendor risk report</h3>
+      <div className="btn-row">
+        <button onClick={load}>{rows ? 'Hide report' : 'Build vendor risk report'}</button>
+        {rows && <a href={api(`/api/engagements/${engagementId}/vendor-data/risk.csv`)} download>Download CSV</a>}
+      </div>
+      {error && <p className="error">{error}</p>}
+      {rows && (rows.length === 0 ? <p className="sub">No vendor data yet — import the vendor master and purchase register first.</p> : (
+        <table>
+          <thead><tr><th>Vendor</th><th className="num">Risk</th><th>Why (capped components)</th>
+            <th className="num">Invoices</th><th className="num">Spend</th><th className="num">ITC at stake</th></tr></thead>
+          <tbody>
+            {rows.slice(0, 15).map((v) => (
+              <tr key={v.vendorId}>
+                <td><strong>{v.name}</strong><div className="sub mono">{v.vendorId}{v.gstin ? ' · ' + v.gstin : ''}</div></td>
+                <td className="num"><strong>{v.score}</strong>/100
+                  <div className="bar obs" style={{ width: `${v.score}%`, maxWidth: 80 }} /></td>
+                <td>
+                  {Object.entries(v.components).map(([k, pts]) => (
+                    <span key={k} className="sev sev-low" title={v.notes.join(' ')}>{COMPONENT_LABELS[k] ?? k} {pts}</span>
+                  ))}
+                  <div className="sub">{v.notes.slice(0, 2).join(' ')}</div>
+                </td>
+                <td className="num">{v.invoiceCount}</td>
+                <td className="num">₹ {inr(v.purchaseValuePaise)}</td>
+                <td className="num">{v.itcAtStakePaise > 0 ? '₹ ' + inr(v.itcAtStakePaise) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ))}
+      {rows && rows.length > 15 && <p className="sub">Showing the top 15 of {rows.length} vendors — the CSV has all of them.</p>}
+      {rows && <p className="sub">A score identifies where to look — it is never a conclusion about a vendor.</p>}
+    </>
   );
 }

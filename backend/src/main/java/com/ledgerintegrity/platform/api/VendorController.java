@@ -23,13 +23,16 @@ public class VendorController {
     private final VendorRecordRepository vendors;
     private final AuditTrailEventRepository auditTrail;
     private final com.ledgerintegrity.platform.vendor.AuditTrailAnalysisService analysisService;
+    private final com.ledgerintegrity.platform.vendor.VendorRiskService riskService;
     private final TenantGuard guard;
 
     public VendorController(VendorImportService importService,
                             VendorRecordRepository vendors,
                             AuditTrailEventRepository auditTrail,
                             com.ledgerintegrity.platform.vendor.AuditTrailAnalysisService analysisService,
+                            com.ledgerintegrity.platform.vendor.VendorRiskService riskService,
                             TenantGuard guard) {
+        this.riskService = riskService;
         this.guard = guard;
         this.importService = importService;
         this.vendors = vendors;
@@ -83,5 +86,30 @@ public class VendorController {
     public ResponseEntity<Map<String, String>> handle(ResponseStatusException ex) {
         return ResponseEntity.status(ex.getStatusCode())
                 .body(Map.of("error", ex.getReason() == null ? ex.getMessage() : ex.getReason()));
+    }
+
+    /** BRD §8 extension: per-vendor composite risk with explainable components. */
+    @GetMapping("/risk")
+    public java.util.List<com.ledgerintegrity.platform.vendor.VendorRiskService.VendorRisk> risk(@PathVariable UUID id) {
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.VENDOR);
+        return riskService.report(id);
+    }
+
+    @GetMapping(value = "/risk.csv", produces = "text/csv")
+    public org.springframework.http.ResponseEntity<String> riskCsv(@PathVariable UUID id) {
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.VENDOR);
+        var rows = new java.util.ArrayList<java.util.List<String>>();
+        for (var v : riskService.report(id)) {
+            rows.add(java.util.List.of(v.vendorId(), v.name(), v.gstin(), String.valueOf(v.score()),
+                    String.valueOf(v.invoiceCount()), String.format("%.2f", v.purchaseValuePaise() / 100.0),
+                    String.format("%.1f", v.spendSharePct()), String.format("%.2f", v.itcAtStakePaise() / 100.0),
+                    v.components().toString(), String.join(" | ", v.notes())));
+        }
+        String csv = com.ledgerintegrity.platform.common.Csv.serialize(
+                java.util.List.of("vendor_id", "name", "gstin", "risk_score", "invoices", "purchase_value_inr",
+                        "spend_share_pct", "itc_at_stake_inr", "components", "notes"), rows);
+        return org.springframework.http.ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=vendor-risk-report.csv")
+                .body(csv);
     }
 }
