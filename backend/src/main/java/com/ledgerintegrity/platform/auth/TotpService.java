@@ -41,8 +41,8 @@ public class TotpService {
 
     /** otpauth URI for authenticator apps (accepted as QR content or via manual key entry). */
     public String uri(String secret, String accountLabel) {
-        return "otpauth://totp/Ledger%20Integrity:" + accountLabel.replace(" ", "%20")
-                + "?secret=" + secret + "&issuer=Ledger%20Integrity&period=" + PERIOD_SECONDS
+        return "otpauth://totp/Prametra:" + accountLabel.replace(" ", "%20")
+                + "?secret=" + secret + "&issuer=Prametra&period=" + PERIOD_SECONDS
                 + "&digits=" + DIGITS;
     }
 

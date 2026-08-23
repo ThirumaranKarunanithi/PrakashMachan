@@ -12,7 +12,7 @@ public class HomeController {
     @GetMapping("/")
     public Map<String, String> home() {
         return Map.of(
-                "service", "Ledger Integrity & Audit Intelligence Platform API",
+                "service", "PRAMETRA - Financial Integrity & Audit Intelligence Platform API",
                 "status", "up",
                 "note", "This is the backend API. The web app is served separately; endpoints live under /api/**.");
     }

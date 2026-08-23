@@ -1,4 +1,4 @@
-# Ledger Integrity & Audit Intelligence Platform — Handover
+# PRAMETRA — Financial Integrity & Audit Intelligence Platform — Handover
 
 **Status:** MVP complete against BRD v1.0 (~94% of MVP requirement weight) · 36/36 automated tests green · verified live 19 Aug 2026
 **Scoreboard:** the live status artifact ("Ledger Integrity Scoreboard") tracks coverage per BRD section and acceptance criterion.

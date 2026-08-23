@@ -141,7 +141,7 @@ export default function RulesPanel({ engagementId }: { engagementId: string }) {
 
   return (
     <section className="card">
-      <h2>3 · Investigation cases</h2>
+      <h2>Prametra Cases — consolidated investigations</h2>
       <div className="form-grid">
         <label>Privileged users (comma-separated)
           <input value={privilegedUsers} onChange={(e) => setPrivilegedUsers(e.target.value)} />
@@ -650,7 +650,7 @@ function AiDraft({ url, label }: { url: string; label: string }) {
     <div className="sub" style={{ marginTop: 4 }}>
       {!note && (
         <a href="#" onClick={(e) => { e.preventDefault(); if (!busy) void load(false); }}>
-          ✨ {busy ? 'Drafting…' : label + ' (AI draft)'}
+          ✨ {busy ? 'Drafting…' : label + ' (Prametra Assist)'}
         </a>
       )}
       {error && <span className="error"> {error}</span>}
@@ -658,7 +658,7 @@ function AiDraft({ url, label }: { url: string; label: string }) {
         <div style={{ background: '#f4f0ff', border: '1px solid #ddd3f5', borderRadius: 7, padding: '8px 11px', marginTop: 4 }}>
           <div style={{ whiteSpace: 'pre-wrap' }}>{note.output}</div>
           <div className="sub" style={{ marginTop: 6 }}>
-            AI draft — review required · {note.model} · {note.promptVersion}{note.cached ? ' · cached' : ''}
+            Prametra Assist draft — review required · {note.model} · {note.promptVersion}{note.cached ? ' · cached' : ''}
             {' · '}<a href="#" onClick={(e) => { e.preventDefault(); void load(true); }}>redraft</a>
             {' · '}<a href="#" onClick={(e) => { e.preventDefault(); setNote(null); }}>hide</a>
           </div>

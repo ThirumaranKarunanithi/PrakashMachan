@@ -1,4 +1,6 @@
-# Ledger Integrity & Audit Intelligence Platform
+# PRAMETRA — Financial Integrity & Audit Intelligence Platform
+
+*Evidence behind every number.*
 
 Multi-client audit and GST risk-intelligence platform for CA firms (see the BRD .docx at repo root).
 

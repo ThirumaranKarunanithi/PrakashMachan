@@ -53,7 +53,7 @@ export default function ClientPortal({ me, onLogout }: { me: Me; onLogout: () =>
     <main>
       <header className="topbar">
         <div>
-          <h1>Document requests</h1>
+          <h1>PRAMETRA — Document requests</h1>
           <p className="sub">{me.displayName} · prepared by {me.firmName}</p>
         </div>
         <div className="whoami"><button onClick={onLogout}>Sign out</button></div>

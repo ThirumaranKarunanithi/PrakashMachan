@@ -79,8 +79,8 @@ export default function App() {
     return (
       <main>
         <header>
-          <h1>Ledger Integrity &amp; Audit Intelligence</h1>
-          <p className="sub">Multi-client audit &amp; GST risk-intelligence platform</p>
+          <h1>PRAMETRA</h1>
+          <p className="sub">Financial Integrity &amp; Audit Intelligence Platform — evidence behind every number.</p>
         </header>
         <AuthPanel onAuthed={setMe} />
       </main>
@@ -91,21 +91,21 @@ export default function App() {
     { group: 'Platform', items: [
       { key: 'overview', label: 'Overview', ico: '▦' },
       { key: 'engagements', label: 'Engagements', ico: '▤' },
-      { key: 'ingest', label: 'Data & Ingestion', ico: '⇪' },
+      { key: 'ingest', label: 'Prametra Foundation', ico: '⇪' },
     ]},
     { group: 'Analysis', items: [
-      { key: 'analysis', label: 'Core Analysis', ico: '∑' },
-      { key: 'gst', label: 'GST Reconciliation', ico: '☰', lockedUnless: ['GST'] },
-      { key: 'vendor', label: 'Vendor & Audit Trail', ico: '⛓', lockedUnless: ['VENDOR', 'AUDIT_TRAIL'] },
-      { key: 'bank', label: 'Bank Reconciliation', ico: '🏦', lockedUnless: ['BANK'] },
+      { key: 'analysis', label: 'Prametra Prism', ico: '◬' },
+      { key: 'gst', label: 'Prametra GST', ico: '☰', lockedUnless: ['GST'] },
+      { key: 'vendor', label: 'Prametra Vendor · Trail', ico: '⛓', lockedUnless: ['VENDOR', 'AUDIT_TRAIL'] },
+      { key: 'bank', label: 'Prametra Bank', ico: '🏦', lockedUnless: ['BANK'] },
     ]},
     { group: 'Customer Subscription', items: [
       { key: 'customers', label: 'Customers', ico: '👥' },
       { key: 'billing', label: 'Pricing & Billing', ico: '₹' },
     ]},
     { group: 'Workflow', items: [
-      { key: 'evidence', label: 'Evidence', ico: '✉' },
-      { key: 'workpapers', label: 'Workpapers', ico: '✍' },
+      { key: 'evidence', label: 'Prametra Evidence', ico: '✉' },
+      { key: 'workpapers', label: 'Prametra Workpapers', ico: '✍' },
       { key: 'security', label: 'Account Security', ico: '🛡' },
     ]},
   ];
@@ -115,7 +115,9 @@ export default function App() {
   return (
     <div className="shell">
       <header className="appbar">
-        <span className="brand"><span className="logo">✓</span>Ledger Integrity &amp; Audit Intelligence</span>
+        <span className="brand"><span className="logo">P</span>PRAMETRA
+          <span style={{ fontWeight: 400, fontSize: '0.78rem', color: '#c6d2e4', marginLeft: 10 }}>Evidence behind every number.</span>
+        </span>
         <span className="spacer" />
         <NotificationBell />
         <span className="whoami">{me.displayName} · <b>{me.firmName}</b> · {me.role}</span>
@@ -185,19 +187,21 @@ export default function App() {
         )}
         {selected && view === 'analysis' && (
           <>
+            <h2 className="view-title">PRAMETRA PRISM</h2>
+            <p className="view-sub">Multi-Model Financial Integrity Engine — one population, multiple lenses, explainable results.</p>
             <RulesPanel key={`rules-${selected.id}-${casesVersion}`} engagementId={selected.id} />
             <BenfordPanel engagementId={selected.id} onChanged={() => setCasesVersion((v) => v + 1)} />
           </>
         )}
         {selected && view === 'gst' && (has(selected, 'GST')
           ? <GstPanel engagementId={selected.id} onReconciled={() => setCasesVersion((v) => v + 1)} />
-          : <LockedModule name="GST Reconciliation" module="GST" engagement={selected} onChanged={() => void refresh(selected.id)} />)}
+          : <LockedModule name="Prametra GST" module="GST" engagement={selected} onChanged={() => void refresh(selected.id)} />)}
         {selected && view === 'vendor' && (has(selected, 'VENDOR') || has(selected, 'AUDIT_TRAIL')
           ? <VendorPanel engagementId={selected.id} />
-          : <LockedModule name="Vendor & Payment Analytics + Audit Trail" module="VENDOR,AUDIT_TRAIL" engagement={selected} onChanged={() => void refresh(selected.id)} />)}
+          : <LockedModule name="Prametra Vendor + Prametra Trail" module="VENDOR,AUDIT_TRAIL" engagement={selected} onChanged={() => void refresh(selected.id)} />)}
         {selected && view === 'bank' && (has(selected, 'BANK')
           ? <BankPanel engagementId={selected.id} onReconciled={() => setCasesVersion((v) => v + 1)} />
-          : <LockedModule name="Bank Reconciliation & Cash Intelligence" module="BANK" engagement={selected} onChanged={() => void refresh(selected.id)} />)}
+          : <LockedModule name="Prametra Bank" module="BANK" engagement={selected} onChanged={() => void refresh(selected.id)} />)}
         {selected && view === 'evidence' && (
           <EvidencePanel engagementId={selected.id} onChanged={() => setCasesVersion((v) => v + 1)} />
         )}
@@ -208,10 +212,10 @@ export default function App() {
 }
 
 const ALL_MODULES = [
-  ['GST', 'GST Reconciliation'],
-  ['BANK', 'Bank Reconciliation'],
-  ['VENDOR', 'Vendor & Payment Analytics'],
-  ['AUDIT_TRAIL', 'Audit Trail & Override'],
+  ['GST', 'Prametra GST'],
+  ['BANK', 'Prametra Bank'],
+  ['VENDOR', 'Prametra Vendor'],
+  ['AUDIT_TRAIL', 'Prametra Trail'],
 ] as const;
 
 function has(e: Engagement, module: string) {

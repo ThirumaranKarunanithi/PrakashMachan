@@ -98,7 +98,7 @@ export default function BenfordPanel({ engagementId, onChanged }: { engagementId
 
   return (
     <section className="card">
-      <h2>4 · Benford analysis</h2>
+      <h2>Digit forensics — Benford &amp; supporting tests</h2>
       <div className="form-grid">
         <label>Population (BEN-001)
           <select value={population} onChange={(e) => setPopulation(e.target.value)}>

@@ -1,4 +1,4 @@
-# Pilot Demo Script — 15 minutes, live platform
+# PRAMETRA Pilot Demo Script — 15 minutes, live platform
 
 *Runbook for a partner meeting. Everything below uses the live demo at
 https://liaiapp.magizhchi.software (opens signed-in to a shared demo firm holding

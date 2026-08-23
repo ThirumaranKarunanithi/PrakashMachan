@@ -5,11 +5,11 @@ skim. Attach the one-page partner brief (PDF/DOCX).*
 
 ## Template A — warm introduction (known partner / referral)
 
-**Subject: A 10-minute look at something we built for audit teams**
+**Subject: PRAMETRA — a 10-minute look at something we built for audit teams**
 
 Dear [Name],
 
-We've built a platform that takes a client's complete ledger — every row, not a
+We've built PRAMETRA, a platform that takes a client's complete ledger — every row, not a
 sample — and shows an audit team exactly which entries deserve review and why:
 digit forensics done properly, GST 2B/GSTR-1 reconciliation, vendor risk, and a
 one-click audit file pack with checksums of every source file.

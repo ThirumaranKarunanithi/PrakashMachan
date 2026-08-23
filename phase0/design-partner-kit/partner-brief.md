@@ -1,10 +1,12 @@
-# Design Partner Brief — Ledger Integrity & Audit Intelligence Platform
+# PRAMETRA — Design Partner Brief
+
+*Financial Integrity & Audit Intelligence Platform — evidence behind every number.*
 
 *One page for a CA firm partner deciding whether to join the pilot programme.*
 
 ## What it is — built and running today
 
-A multi-client platform that analyses **complete transaction populations** (not samples), flags unusual entries through **21 independent detection rules across six risk families** (statistical, deterministic, reconciliation, behaviour, relationship, evidence), reconciles books against GSTR-1/2B/3B and bank statements, collects client evidence through a secure portal, and produces review-ready workpapers with a one-click **Audit File Pack** (workpaper PDF, exception register, correction schedule, source-file checksums, methodology record).
+A multi-client platform that analyses **complete transaction populations** (not samples), flags unusual entries through **the PRAMETRA PRISM engine — 21 independent detection rules across six risk families** (statistical, deterministic, reconciliation, behaviour, relationship, evidence), reconciles books against GSTR-1/2B/3B and bank statements, collects client evidence through a secure portal, and produces review-ready workpapers with a one-click **Audit File Pack** (workpaper PDF, exception register, correction schedule, source-file checksums, methodology record).
 
 **The product never declares fraud.** It ranks what deserves review, shows the exact source rows behind every signal, and keeps every conclusion in the auditor's hands.
 

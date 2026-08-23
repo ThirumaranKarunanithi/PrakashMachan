@@ -38,6 +38,6 @@ class TotpServiceTest {
         String uri = totp.uri("ABC234", "user@firm.in");
         assertTrue(uri.startsWith("otpauth://totp/"));
         assertTrue(uri.contains("secret=ABC234"));
-        assertTrue(uri.contains("issuer=Ledger%20Integrity"));
+        assertTrue(uri.contains("issuer=Prametra"));
     }
 }
