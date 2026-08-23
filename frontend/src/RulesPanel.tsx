@@ -176,6 +176,7 @@ export default function RulesPanel({ engagementId }: { engagementId: string }) {
         </details>
       )}
 
+      <ModelChips cases={cases} />
       {visible.map((c) => <CaseView key={c.id} c={c} onSaved={loadCases} />)}
       {visible.length === 0 && <p className="sub">No {showResolved ? '' : 'open '}cases. Run the rule pack after importing data.</p>}
     </section>
@@ -202,7 +203,7 @@ function familyChips(json: string | null) {
 }
 
 function CaseView({ c, onSaved }: { c: InvestigationCase; onSaved: () => Promise<void> }) {
-  const [open, setOpen] = useState(c.severity === 'HIGH');
+  const [open, setOpen] = useState(false);
   const [showOverride, setShowOverride] = useState(false);
   const [timeline, setTimeline] = useState<{ when: string; source: string; description: string }[] | null>(null);
 
@@ -244,8 +245,19 @@ function CaseView({ c, onSaved }: { c: InvestigationCase; onSaved: () => Promise
           ₹ {inr(c.exposurePaise)} · {c.openCount}/{c.exceptionCount} open {open ? '▾' : '▸'}
         </span>
       </button>
+      {open && <div className="drawer-overlay" onClick={() => setOpen(false)} />}
       {open && (
-        <div style={{ padding: '4px 14px 0' }}>
+      <aside className="drawer" role="dialog" aria-label={`Case ${c.caseNo}`}>
+        <div className="drawer-head">
+          <span className="case-no">CASE-{String(c.caseNo).padStart(3, '0')}</span>
+          <span className={`sev sev-${c.severity.toLowerCase()}`}>{c.severity}</span>
+          <span className="case-title">{c.title}</span>
+          <button className="close" onClick={() => setOpen(false)}>Close ✕</button>
+        </div>
+        <p className="sub" style={{ margin: '8px 0 0' }}>
+          {familyChips(c.familyScoresJson)} priority {c.effectivePriority} · ₹ {inr(c.exposurePaise)} · {c.openCount}/{c.exceptionCount} open
+        </p>
+        <div style={{ padding: '4px 0 0' }}>
           <a href="#" className="sub" onClick={(e) => { e.preventDefault(); setShowOverride(!showOverride); }}>
             {showOverride ? 'Hide priority override' : 'Override review priority (RSK-004)'}
           </a>
@@ -276,8 +288,6 @@ function CaseView({ c, onSaved }: { c: InvestigationCase; onSaved: () => Promise
           )}
           {error && <p className="error">{error}</p>}
         </div>
-      )}
-      {open && (
         <table>
           <thead>
             <tr><th>Rule</th><th>Severity</th><th>Exposure</th><th>Why it was flagged</th><th>Status &amp; decision</th></tr>
@@ -286,7 +296,38 @@ function CaseView({ c, onSaved }: { c: InvestigationCase; onSaved: () => Promise
             {c.exceptions.map((e) => <ExceptionRow key={e.id} c={e} onSaved={onSaved} />)}
           </tbody>
         </table>
+      </aside>
       )}
+    </div>
+  );
+}
+
+/** Screen-4 workbench chips: each core model with its live open-signal count. */
+const MODEL_CHIPS: { label: string; rules: string[] }[] = [
+  { label: 'Benford digit tests', rules: ['BEN-01'] },
+  { label: 'Modified Z-score', rules: ['STA-01'] },
+  { label: 'Rarity', rules: ['STA-02', 'JE-06'] },
+  { label: 'Round / repeated values', rules: ['PET-04', 'JE-05'] },
+  { label: 'Threshold bunching / splits', rules: ['STA-03', 'VP-05'] },
+  { label: 'Time-series / period-end', rules: ['STA-04', 'PET-01', 'PET-02'] },
+  { label: 'Backdating / reversals', rules: ['JE-03', 'JE-09'] },
+  { label: 'Behaviour & access', rules: ['MOT-01', 'MOT-02', 'STA-02'] },
+];
+
+function ModelChips({ cases }: { cases: InvestigationCase[] }) {
+  const counts = new Map<string, number>();
+  for (const c of cases) for (const x of c.exceptions) counts.set(x.ruleId, (counts.get(x.ruleId) ?? 0) + 1);
+  return (
+    <div className="chips-row">
+      {MODEL_CHIPS.map((m) => {
+        const n = m.rules.reduce((acc, r) => acc + (counts.get(r) ?? 0), 0);
+        return (
+          <span key={m.label} className={'chip' + (n > 0 ? ' hot' : '')}
+                title={n > 0 ? `${n} signal(s) from ${m.rules.join(', ')}` : 'No signals from this model on the current results'}>
+            {n > 0 ? '●' : '○'} {m.label}{n > 0 && <span className="cnt"> {n}</span>}
+          </span>
+        );
+      })}
     </div>
   );
 }

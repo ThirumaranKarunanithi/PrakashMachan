@@ -21,6 +21,7 @@ export default function App() {
   const [history, setHistory] = useState<ImportBatch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [casesVersion, setCasesVersion] = useState(0);
+  const [view, setView] = useState('overview');
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -79,51 +80,112 @@ export default function App() {
     );
   }
 
+  const NAV: { group: string; items: { key: string; label: string; ico: string; lockedUnless?: string[] }[] }[] = [
+    { group: 'Platform', items: [
+      { key: 'overview', label: 'Overview', ico: '▦' },
+      { key: 'engagements', label: 'Engagements', ico: '▤' },
+      { key: 'ingest', label: 'Data & Ingestion', ico: '⇪' },
+    ]},
+    { group: 'Analysis', items: [
+      { key: 'analysis', label: 'Core Analysis', ico: '∑' },
+      { key: 'gst', label: 'GST Reconciliation', ico: '☰', lockedUnless: ['GST'] },
+      { key: 'vendor', label: 'Vendor & Audit Trail', ico: '⛓', lockedUnless: ['VENDOR', 'AUDIT_TRAIL'] },
+      { key: 'bank', label: 'Bank Reconciliation', ico: '🏦', lockedUnless: ['BANK'] },
+    ]},
+    { group: 'Workflow', items: [
+      { key: 'evidence', label: 'Evidence', ico: '✉' },
+      { key: 'workpapers', label: 'Workpapers', ico: '✍' },
+    ]},
+  ];
+
+  const needsEngagement = view !== 'engagements';
+
   return (
-    <main>
-      <header className="topbar">
-        <div>
-          <h1>Ledger Integrity &amp; Audit Intelligence</h1>
-          <p className="sub">Engagements · data import · completeness &amp; data quality (DAT-001…006)</p>
-        </div>
-        <div className="whoami">
-          <NotificationBell />
-          <span>{me.displayName} · <b>{me.firmName}</b> · {me.role}</span>
-          <button onClick={logout}>Sign out</button>
-        </div>
+    <div className="shell">
+      <header className="appbar">
+        <span className="brand"><span className="logo">✓</span>Ledger Integrity &amp; Audit Intelligence</span>
+        <span className="spacer" />
+        <NotificationBell />
+        <span className="whoami">{me.displayName} · <b>{me.firmName}</b> · {me.role}</span>
+        <span className="whoami"><button onClick={logout}>Sign out</button></span>
       </header>
-      {error && <p className="error">{error}</p>}
 
-      <EngagementPanel
-        engagements={engagements}
-        selected={selected}
-        onSelect={(e) => { setSelected(e); void refresh(e?.id); }}
-        onCreated={(id) => void refresh(id)}
-      />
+      <nav className="sidebar">
+        <div className="eng-select">
+          <label>Engagement
+            <select value={selected?.id ?? ''} onChange={(e) => {
+              const found = engagements.find((x) => x.id === e.target.value) ?? null;
+              setSelected(found);
+              void refresh(found?.id);
+            }}>
+              <option value="">— select —</option>
+              {engagements.map((e) => <option key={e.id} value={e.id}>{e.clientName} · {e.fyStart.slice(0, 4)}-{e.fyEnd.slice(2, 4)}</option>)}
+            </select>
+          </label>
+        </div>
+        {NAV.map((g) => (
+          <div className="nav-group" key={g.group}>
+            <div className="nav-label">{g.group}</div>
+            {g.items.map((it) => {
+              const locked = it.lockedUnless && selected && !it.lockedUnless.some((m) => has(selected, m));
+              return (
+                <button key={it.key} className={'nav-item' + (view === it.key ? ' active' : '')}
+                        onClick={() => setView(it.key)}>
+                  <span className="ico">{it.ico}</span><span className="txt">{it.label}</span>
+                  {locked ? <span className="lock">🔒</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
 
-      {selected && (
-        <>
-          <ImportPanel
-            engagement={selected}
-            history={history}
-            onImported={() => void refresh(selected.id)}
+      <div className="content">
+        {error && <p className="error">{error}</p>}
+        {needsEngagement && !selected && (
+          <section className="card">
+            <h2>Select an engagement</h2>
+            <p className="sub">Pick an engagement in the sidebar, or create one under Engagements.</p>
+            <button onClick={() => setView('engagements')}>Go to Engagements</button>
+          </section>
+        )}
+
+        {view === 'engagements' && (
+          <EngagementPanel
+            engagements={engagements}
+            selected={selected}
+            onSelect={(e) => { setSelected(e); void refresh(e?.id); }}
+            onCreated={(id) => { void refresh(id); }}
           />
-          <RulesPanel key={`rules-${selected.id}-${casesVersion}`} engagementId={selected.id} />
-          <BenfordPanel engagementId={selected.id} onChanged={() => setCasesVersion((v) => v + 1)} />
-          {has(selected, 'GST')
-            ? <GstPanel engagementId={selected.id} onReconciled={() => setCasesVersion((v) => v + 1)} />
-            : <LockedModule name="GST Reconciliation" module="GST" engagement={selected} onChanged={() => void refresh(selected.id)} />}
-          {has(selected, 'VENDOR') || has(selected, 'AUDIT_TRAIL')
-            ? <VendorPanel engagementId={selected.id} />
-            : <LockedModule name="Vendor & Payment Analytics + Audit Trail" module="VENDOR,AUDIT_TRAIL" engagement={selected} onChanged={() => void refresh(selected.id)} />}
-          {has(selected, 'BANK')
-            ? <BankPanel engagementId={selected.id} onReconciled={() => setCasesVersion((v) => v + 1)} />
-            : <LockedModule name="Bank Reconciliation & Cash Intelligence" module="BANK" engagement={selected} onChanged={() => void refresh(selected.id)} />}
+        )}
+
+        {selected && view === 'overview' && (
+          <OverviewView key={`ov-${selected.id}-${casesVersion}`} engagement={selected} onOpenAnalysis={() => setView('analysis')} />
+        )}
+        {selected && view === 'ingest' && (
+          <ImportPanel engagement={selected} history={history} onImported={() => void refresh(selected.id)} />
+        )}
+        {selected && view === 'analysis' && (
+          <>
+            <RulesPanel key={`rules-${selected.id}-${casesVersion}`} engagementId={selected.id} />
+            <BenfordPanel engagementId={selected.id} onChanged={() => setCasesVersion((v) => v + 1)} />
+          </>
+        )}
+        {selected && view === 'gst' && (has(selected, 'GST')
+          ? <GstPanel engagementId={selected.id} onReconciled={() => setCasesVersion((v) => v + 1)} />
+          : <LockedModule name="GST Reconciliation" module="GST" engagement={selected} onChanged={() => void refresh(selected.id)} />)}
+        {selected && view === 'vendor' && (has(selected, 'VENDOR') || has(selected, 'AUDIT_TRAIL')
+          ? <VendorPanel engagementId={selected.id} />
+          : <LockedModule name="Vendor & Payment Analytics + Audit Trail" module="VENDOR,AUDIT_TRAIL" engagement={selected} onChanged={() => void refresh(selected.id)} />)}
+        {selected && view === 'bank' && (has(selected, 'BANK')
+          ? <BankPanel engagementId={selected.id} onReconciled={() => setCasesVersion((v) => v + 1)} />
+          : <LockedModule name="Bank Reconciliation & Cash Intelligence" module="BANK" engagement={selected} onChanged={() => void refresh(selected.id)} />)}
+        {selected && view === 'evidence' && (
           <EvidencePanel engagementId={selected.id} onChanged={() => setCasesVersion((v) => v + 1)} />
-          <WorkpaperPanel engagementId={selected.id} />
-        </>
-      )}
-    </main>
+        )}
+        {selected && view === 'workpapers' && <WorkpaperPanel engagementId={selected.id} />}
+      </div>
+    </div>
   );
 }
 
@@ -175,6 +237,120 @@ function LockedModule({ name, module, engagement, onChanged }: {
       <button onClick={enable} disabled={busy}>{busy ? 'Enabling…' : 'Enable module'}</button>
       {error && <p className="error">{error}</p>}
     </section>
+  );
+}
+
+
+// ---------- overview (Screen-4 style: tiles + charts + top signals) ----------
+
+interface OvSlice { key: string; count: number; highCount: number; exposurePaise: number }
+interface OvExplorer { byRule: OvSlice[]; byUser: OvSlice[]; byMonth: OvSlice[]; byAccount: OvSlice[] }
+
+function OverviewView({ engagement, onOpenAnalysis }: { engagement: Engagement; onOpenAnalysis: () => void }) {
+  const [row, setRow] = useState<PortfolioRow | null>(null);
+  const [explorer, setExplorer] = useState<OvExplorer | null>(null);
+
+  useEffect(() => {
+    fetch('/api/dashboard')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: PortfolioRow[]) => setRow(rows.find((r) => r.engagementId === engagement.id) ?? null))
+      .catch(() => {});
+    fetch(`/api/engagements/${engagement.id}/risk-explorer`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setExplorer)
+      .catch(() => {});
+  }, [engagement.id]);
+
+  return (
+    <>
+      <h2 className="view-title">{engagement.clientName} — {engagement.fyStart} → {engagement.fyEnd}</h2>
+      <p className="view-sub">Core subscription plus: {(engagement.modules ?? []).join(', ') || 'none (Core only)'} · population {engagement.populationCount.toLocaleString('en-IN')} rows</p>
+
+      <div className="tiles-row">
+        <div className="stile"><b>{engagement.populationCount.toLocaleString('en-IN')}</b><span>ledger rows in population</span></div>
+        <div className={'stile' + ((row?.openHigh ?? 0) > 0 ? ' alert' : '')}><b>{row ? row.openExceptions : '—'}</b><span>open exceptions{row && row.openHigh > 0 ? ` (${row.openHigh} HIGH)` : ''}</span></div>
+        <div className="stile"><b>{row ? `${row.openCases}/${row.totalCases}` : '—'}</b><span>open cases</span></div>
+        <div className="stile"><b>{row ? '₹ ' + inr(row.estimatedExposurePaise) : '—'}</b><span>estimated exposure (de-duplicated)</span></div>
+        <div className="stile"><b>{row ? '₹ ' + inr(row.confirmedExposurePaise) : '—'}</b><span>confirmed misstatement</span></div>
+        <div className={'stile' + ((row?.overdueEvidence ?? 0) > 0 ? ' alert' : '')}><b>{row ? row.overdueEvidence : '—'}</b><span>overdue evidence</span></div>
+        <div className="stile"><b>{row ? row.workpaperStatus : '—'}</b><span>workpaper</span></div>
+      </div>
+
+      {explorer && explorer.byMonth.length > 0 && (
+        <div className="charts-row">
+          <MonthExposureChart slices={explorer.byMonth} />
+          <RuleExposureChart slices={explorer.byRule} onOpen={onOpenAnalysis} />
+        </div>
+      )}
+      {(!explorer || explorer.byMonth.length === 0) && (
+        <section className="card">
+          <p className="sub">No open risk yet — import data and run the rule pack under Core Analysis.</p>
+          <button onClick={onOpenAnalysis}>Open Core Analysis</button>
+        </section>
+      )}
+    </>
+  );
+}
+
+/** Open exposure by posting month — single series (sequential job), accent hue. */
+function MonthExposureChart({ slices }: { slices: OvSlice[] }) {
+  const data = [...slices].filter((s) => s.key !== '(n/a)').sort((a, b) => a.key.localeCompare(b.key));
+  if (data.length === 0) return null;
+  const W = 420, H = 190, padL = 8, padB = 26, padT = 14;
+  const bw = Math.min(34, (W - padL * 2) / data.length - 6);
+  const max = Math.max(...data.map((d) => d.exposurePaise), 1);
+  const maxIdx = data.findIndex((d) => d.exposurePaise === max);
+  return (
+    <div className="chart-card">
+      <h3>Open exposure by posting month</h3>
+      <div className="legend">₹ exposure of open exceptions, grouped by the flagged voucher's month</div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Open exposure by posting month">
+        {data.map((d, i) => {
+          const h = Math.max(3, ((H - padB - padT) * d.exposurePaise) / max);
+          const x = padL + i * ((W - padL * 2) / data.length) + 3;
+          const y = H - padB - h;
+          return (
+            <g key={d.key}>
+              <rect x={x} y={y} width={bw} height={h} rx={4} fill="#2563eb">
+                <title>{`${d.key}: ₹ ${inr(d.exposurePaise)} · ${d.count} signal(s)${d.highCount ? ` · ${d.highCount} HIGH` : ''}`}</title>
+              </rect>
+              {i === maxIdx && <text className="val" x={x + bw / 2} y={y - 4} textAnchor="middle">₹ {inr(d.exposurePaise)}</text>}
+              <text x={x + bw / 2} y={H - 8} textAnchor="middle">{d.key.slice(2).replace('-', '/')}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+/** Top rules by open exposure — horizontal bars, one series, direct labels. */
+function RuleExposureChart({ slices, onOpen }: { slices: OvSlice[]; onOpen: () => void }) {
+  const data = [...slices].sort((a, b) => b.exposurePaise - a.exposurePaise).slice(0, 6);
+  if (data.length === 0) return null;
+  const W = 420, rowH = 27, padT = 6;
+  const H = padT + data.length * rowH + 4;
+  const max = Math.max(...data.map((d) => d.exposurePaise), 1);
+  return (
+    <div className="chart-card">
+      <h3>What drives the open risk</h3>
+      <div className="legend">top rules by ₹ exposure of open signals — <a href="#" onClick={(e) => { e.preventDefault(); onOpen(); }}>open the cases</a></div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Top rules by open exposure">
+        {data.map((d, i) => {
+          const y = padT + i * rowH;
+          const w = Math.max(3, (W - 190) * (d.exposurePaise / max));
+          return (
+            <g key={d.key}>
+              <text x={0} y={y + 14}>{d.key.split(' ')[0]}</text>
+              <rect x={56} y={y + 4} width={w} height={14} rx={4} fill="#2563eb">
+                <title>{`${d.key}: ₹ ${inr(d.exposurePaise)} · ${d.count} signal(s)`}</title>
+              </rect>
+              <text className="val" x={56 + w + 6} y={y + 15}>₹ {inr(d.exposurePaise)}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 }
 
