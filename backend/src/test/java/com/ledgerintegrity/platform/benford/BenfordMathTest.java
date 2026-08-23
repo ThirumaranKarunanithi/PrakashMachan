@@ -51,4 +51,21 @@ class BenfordMathTest {
         assertEquals(Conformity.NONCONFORMITY, BenfordService.classify(0.020, DigitTest.FIRST));
         assertEquals(Conformity.NONCONFORMITY, BenfordService.classify(0.003, DigitTest.FIRST_TWO));
     }
+
+    @Test
+    void secondOrderDifferencesAreSortedPositiveGaps() {
+        java.util.List<com.ledgerintegrity.platform.rules.Voucher> vs = new java.util.ArrayList<>();
+        long[] amounts = {5_000_00L, 1_000_00L, 3_000_00L, 3_000_00L, 10_000_00L};
+        for (int i = 0; i < amounts.length; i++) {
+            vs.add(new com.ledgerintegrity.platform.rules.Voucher("V" + i, java.util.List.of(
+                    new com.ledgerintegrity.platform.importer.model.LedgerRow("V" + i, "Journal",
+                            java.time.LocalDate.of(2024, 6, 1), null, "5001", "A",
+                            amounts[i], null, "t", "Manual", "u", null,
+                            new com.ledgerintegrity.platform.importer.model.Lineage("gl.csv", 2)))));
+        }
+        // sorted: 1000, 3000, 3000, 5000, 10000 -> positive gaps 2000, 2000, 5000 (zero gap dropped)
+        var diffs = BenfordService.secondOrderDifferences(vs);
+        assertEquals(java.util.List.of(2_000_00L, 2_000_00L, 5_000_00L), diffs);
+        assertEquals("20", BenfordService.digitLabel(2_000_00L, DigitTest.SECOND_ORDER));
+    }
 }

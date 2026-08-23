@@ -330,7 +330,7 @@ const MODEL_CHIPS: { label: string; rules: string[] }[] = [
   { label: 'Rarity', rules: ['STA-02', 'JE-06'] },
   { label: 'Round / repeated values', rules: ['PET-04', 'JE-05'] },
   { label: 'Threshold bunching / splits', rules: ['STA-03', 'VP-05'] },
-  { label: 'Time-series / period-end', rules: ['STA-04', 'PET-01', 'PET-02'] },
+  { label: 'Time-series / period-end', rules: ['STA-04', 'STA-05', 'PET-01', 'PET-02'] },
   { label: 'Backdating / reversals', rules: ['JE-03', 'JE-09'] },
   { label: 'Behaviour & access', rules: ['MOT-01', 'MOT-02', 'STA-02'] },
 ];

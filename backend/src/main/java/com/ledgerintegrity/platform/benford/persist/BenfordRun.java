@@ -24,7 +24,9 @@ public class BenfordRun {
 
     public enum DigitTest { FIRST, SECOND, FIRST_TWO,
         /** Terminal-pair (last-two-digit) analysis — supporting digital test, guide §3.3. */
-        LAST_TWO }
+        LAST_TWO,
+        /** Second-order Benford: first-two digits of differences between sorted values (guide §3.1). */
+        SECOND_ORDER }
 
     /** BRD §16.4 recommended labels. */
     public enum Suitability { SUITABLE, SUITABLE_WITH_CAUTION, NOT_SUITABLE }

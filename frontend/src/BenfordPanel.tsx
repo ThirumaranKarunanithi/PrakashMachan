@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { inr } from './types';
 
 interface Bucket {
+  valuePct: number;
   digit: string;
   observed: number;
   observedPct: number;
@@ -36,12 +37,13 @@ interface DrillRow {
 }
 
 const POPULATIONS = ['ALL_VOUCHERS', 'MANUAL_JOURNALS', 'PAYMENTS', 'PURCHASES', 'SALES'] as const;
-const TESTS = ['FIRST', 'SECOND', 'FIRST_TWO', 'LAST_TWO'] as const;
+const TESTS = ['FIRST', 'SECOND', 'FIRST_TWO', 'LAST_TWO', 'SECOND_ORDER'] as const;
 const TEST_LABELS: Record<string, string> = {
   FIRST: 'First digit',
   SECOND: 'Second digit',
   FIRST_TWO: 'First two digits',
   LAST_TWO: 'Last two digits (terminal pair — supporting test)',
+  SECOND_ORDER: 'Second-order (differences — supporting test)',
 };
 
 export default function BenfordPanel({ engagementId, onChanged }: { engagementId: string; onChanged: () => void }) {
@@ -137,7 +139,7 @@ export default function BenfordPanel({ engagementId, onChanged }: { engagementId
 
           <div className="benford-table-wrap">
             <table>
-              <thead><tr><th>Digit</th><th>Observed</th><th>Observed %</th><th>Expected %</th><th>Excess</th><th>Distribution</th></tr></thead>
+              <thead><tr><th>Digit</th><th>Observed</th><th>Observed %</th><th>Expected %</th><th title="Summation test: this bucket's share of total VALUE — a spike marks large-amount concentration">Value %</th><th>Excess</th><th>Distribution</th></tr></thead>
               <tbody>
                 {run.result.buckets.map((b) => (
                   <tr key={b.digit}
@@ -148,6 +150,7 @@ export default function BenfordPanel({ engagementId, onChanged }: { engagementId
                     <td className="num">{b.observed.toLocaleString('en-IN')}</td>
                     <td className="num">{b.observedPct.toFixed(2)}</td>
                     <td className="num">{b.expectedPct.toFixed(2)}</td>
+                    <td className="num">{b.valuePct != null ? b.valuePct.toFixed(2) : ''}</td>
                     <td className="num">{b.excess > 0 ? '+' + b.excess : ''}</td>
                     <td style={{ minWidth: 160 }}>
                       <div className="bar obs" style={{ width: `${(b.observedPct / maxPct) * 100}%` }} />

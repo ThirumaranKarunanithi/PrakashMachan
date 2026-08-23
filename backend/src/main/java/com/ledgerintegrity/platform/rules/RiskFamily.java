@@ -25,8 +25,9 @@ public enum RiskFamily {
     public static RiskFamily of(String ruleId) {
         if (ruleId == null) return DETERMINISTIC;
         if (ruleId.startsWith("GS-") || ruleId.startsWith("BK-")) return RECONCILIATION;
-        if (ruleId.startsWith("BEN") || ruleId.equals("STA-01") || ruleId.equals("STA-03")
-                || ruleId.equals("STA-04")) return STATISTICAL;
+        // every STA rule is statistical except STA-02, whose signal is WHO acted
+        if (ruleId.startsWith("BEN")
+                || (ruleId.startsWith("STA-") && !ruleId.equals("STA-02"))) return STATISTICAL;
         if (ruleId.startsWith("MOT") || ruleId.startsWith("ATR")
                 || ruleId.equals("STA-02")   // rare user-account = access pattern
                 || ruleId.equals("VP-03")    // new vendor immediately active

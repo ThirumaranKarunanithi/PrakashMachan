@@ -2,6 +2,7 @@ package com.ledgerintegrity.platform.rules;
 
 import com.ledgerintegrity.platform.importer.model.LedgerRow;
 import com.ledgerintegrity.platform.importer.model.Lineage;
+import com.ledgerintegrity.platform.rules.sta.ActivityDriftCusumRule;
 import com.ledgerintegrity.platform.rules.sta.ActivitySpikeRule;
 import com.ledgerintegrity.platform.rules.sta.ModifiedZScoreOutlierRule;
 import com.ledgerintegrity.platform.rules.sta.RareUserAccountRule;
@@ -150,5 +151,45 @@ class StatisticalRulesTest {
         assertTrue(f.reason().contains("2024-08-01"));
         assertTrue(f.reason().contains("rolling"));
         assertTrue(f.reason().contains("MGR-1"));
+    }
+
+    // ---------- STA-05 CUSUM drift ----------
+
+    @Test
+    void cusumFlagsGradualDriftThatNoSingleDayWouldTrigger() {
+        List<LedgerRow> rows = new ArrayList<>();
+        LocalDate start = LocalDate.of(2024, 4, 1);
+        // 120 days baseline-quarter-plus: 2/day for 90 days...
+        for (int d = 0; d < 90; d++) {
+            for (int j = 0; j < 2; j++) {
+                rows.add(row("N" + d + "x" + j, "Journal", "5001", start.plusDays(d), 5_000_00L, "Manual", "ACCT-1"));
+            }
+        }
+        // ...then a persistent shift to 5/day - each day modest, the drift unmistakable
+        for (int d = 90; d < 130; d++) {
+            for (int j = 0; j < 5; j++) {
+                rows.add(row("G" + d + "x" + j, "Journal", "5001", start.plusDays(d), 8_000_00L, "Manual", "MGR-1"));
+            }
+        }
+
+        var findings = new ActivityDriftCusumRule().evaluate(ctx(RuleParams.defaults(), rows));
+        assertEquals(1, findings.size());
+        var f = findings.get(0);
+        assertTrue(f.reason().contains("CUSUM"));
+        assertTrue(f.reason().contains("MGR-1"));
+        assertTrue(f.reason().contains("2024-06-30") || f.reason().contains("2024-07"),
+                "drift should be located near day 90: " + f.reason());
+    }
+
+    @Test
+    void cusumStaysQuietOnStableActivity() {
+        List<LedgerRow> rows = new ArrayList<>();
+        LocalDate start = LocalDate.of(2024, 4, 1);
+        for (int d = 0; d < 130; d++) {
+            for (int j = 0; j < 2 + (d % 2); j++) { // 2-3 per day, no drift
+                rows.add(row("S" + d + "x" + j, "Journal", "5001", start.plusDays(d), 5_000_00L, "Manual", "ACCT-1"));
+            }
+        }
+        assertTrue(new ActivityDriftCusumRule().evaluate(ctx(RuleParams.defaults(), rows)).isEmpty());
     }
 }

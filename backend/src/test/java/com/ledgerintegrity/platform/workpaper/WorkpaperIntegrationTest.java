@@ -69,7 +69,7 @@ class WorkpaperIntegrationTest {
         assertEquals(1, v1.getVersion());
         assertEquals(Workpaper.Status.DRAFT, v1.getStatus());
         String html = v1.getContentHtml();
-        assertTrue(html.contains("mvp-pack-0.5.0"));
+        assertTrue(html.contains("mvp-pack-0.6.0"));
         assertTrue(html.contains("privilegedUsers"));
         assertTrue(html.contains("JRN-90001"));
         assertTrue(html.contains("Needs partner attention."));

@@ -11,6 +11,7 @@ import com.ledgerintegrity.platform.rules.mot.VendorMasterPaymentConflictRule;
 import com.ledgerintegrity.platform.rules.pet.CloseVolumeSpikeRule;
 import com.ledgerintegrity.platform.rules.pet.CloseWindowAccountRule;
 import com.ledgerintegrity.platform.rules.pet.LatePostingRule;
+import com.ledgerintegrity.platform.rules.sta.ActivityDriftCusumRule;
 import com.ledgerintegrity.platform.rules.sta.ActivitySpikeRule;
 import com.ledgerintegrity.platform.rules.sta.ModifiedZScoreOutlierRule;
 import com.ledgerintegrity.platform.rules.sta.RareUserAccountRule;
@@ -30,7 +31,7 @@ import java.util.List;
 public record RulePack(String version, List<Rule> rules) {
 
     public static RulePack current() {
-        return new RulePack("mvp-pack-0.5.0", List.of(
+        return new RulePack("mvp-pack-0.6.0", List.of(
                 // journal-entry rules
                 new PostCloseBackdatedRule(),
                 new QuickReversalRule(),
@@ -55,6 +56,7 @@ public record RulePack(String version, List<Rule> rules) {
                 new ModifiedZScoreOutlierRule(),
                 new RareUserAccountRule(),
                 new ThresholdBunchingRule(),
-                new ActivitySpikeRule()));
+                new ActivitySpikeRule(),
+                new ActivityDriftCusumRule()));
     }
 }

@@ -98,7 +98,7 @@ class RuleEngineIntegrationTest {
         assertTrue(all.stream().allMatch(x -> x.getSourceRefs().contains("general_ledger.csv:")));
 
         // run parameters are snapshotted for reproducibility (JET-007)
-        assertEquals("mvp-pack-0.5.0", result.run().getPackVersion());
+        assertEquals("mvp-pack-0.6.0", result.run().getPackVersion());
         assertTrue(result.run().getParamsJson().contains("privilegedUsers"));
 
         // XC-05: related exceptions consolidate into one case per underlying event.
