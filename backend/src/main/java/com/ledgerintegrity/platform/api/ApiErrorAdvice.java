@@ -54,4 +54,26 @@ public class ApiErrorAdvice {
     public Map<String, String> tooLarge(MaxUploadSizeExceededException ex) {
         return Map.of("error", "The uploaded file exceeds the size limit (200MB per file).");
     }
+
+    /** Deliberate statuses (404/403/400 from guards and controllers) pass through unchanged. */
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public org.springframework.http.ResponseEntity<Map<String, String>> deliberate(
+            org.springframework.web.server.ResponseStatusException ex) {
+        return org.springframework.http.ResponseEntity.status(ex.getStatusCode())
+                .body(Map.of("error", ex.getReason() == null ? ex.getMessage() : ex.getReason()));
+    }
+
+    /**
+     * Unexpected failures: return the exception class and a trimmed message instead of
+     * a blank 500, and log the full trace. Acceptable while the platform runs demo
+     * data; revisit (log-reference only) with the production hardening pass.
+     */
+    @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public Map<String, String> unexpected(Exception ex) {
+        org.slf4j.LoggerFactory.getLogger(ApiErrorAdvice.class).error("Unhandled API error", ex);
+        String msg = ex.getMessage() == null ? "" : ex.getMessage();
+        return Map.of("error", "Unexpected error: " + ex.getClass().getSimpleName()
+                + (msg.isEmpty() ? "" : " - " + (msg.length() > 200 ? msg.substring(0, 200) : msg)));
+    }
 }

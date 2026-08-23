@@ -27,9 +27,11 @@ public class ExceptionDecision {
     @Column(nullable = false)
     private UUID exceptionId;
 
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
     @Column(columnDefinition = "varchar(20)")
     private ExceptionCase.Status fromStatus;
 
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
     @Column(nullable = false, columnDefinition = "varchar(20)")
     private ExceptionCase.Status toStatus;
 
