@@ -47,7 +47,9 @@ public class AppUser {
     @Column(nullable = false)
     private Instant createdAt;
 
-    /** Force a password change on next login (set for admin-provisioned client accounts). */
+    /** Force a password change on next login (set for admin-provisioned client accounts).
+     * Explicit DEFAULT FALSE so ddl-auto can add the column to already-populated tables. */
+    @jakarta.persistence.Column(columnDefinition = "boolean default false not null")
     private boolean passwordResetRequired;
 
     protected AppUser() {} // JPA

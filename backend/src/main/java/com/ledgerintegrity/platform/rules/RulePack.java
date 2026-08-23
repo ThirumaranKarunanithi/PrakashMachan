@@ -11,6 +11,10 @@ import com.ledgerintegrity.platform.rules.mot.VendorMasterPaymentConflictRule;
 import com.ledgerintegrity.platform.rules.pet.CloseVolumeSpikeRule;
 import com.ledgerintegrity.platform.rules.pet.CloseWindowAccountRule;
 import com.ledgerintegrity.platform.rules.pet.LatePostingRule;
+import com.ledgerintegrity.platform.rules.sta.ActivitySpikeRule;
+import com.ledgerintegrity.platform.rules.sta.ModifiedZScoreOutlierRule;
+import com.ledgerintegrity.platform.rules.sta.RareUserAccountRule;
+import com.ledgerintegrity.platform.rules.sta.ThresholdBunchingRule;
 import com.ledgerintegrity.platform.rules.vp.BankChangeBeforePaymentRule;
 import com.ledgerintegrity.platform.rules.vp.DuplicateInvoiceRule;
 import com.ledgerintegrity.platform.rules.vp.DuplicateVendorRule;
@@ -26,7 +30,7 @@ import java.util.List;
 public record RulePack(String version, List<Rule> rules) {
 
     public static RulePack current() {
-        return new RulePack("mvp-pack-0.4.0", List.of(
+        return new RulePack("mvp-pack-0.5.0", List.of(
                 // journal-entry rules
                 new PostCloseBackdatedRule(),
                 new QuickReversalRule(),
@@ -46,6 +50,11 @@ public record RulePack(String version, List<Rule> rules) {
                 new CloseWindowAccountRule(),
                 // management-override rules (BRD §13)
                 new PrivilegedDirectPostingRule(),
-                new VendorMasterPaymentConflictRule()));
+                new VendorMasterPaymentConflictRule(),
+                // statistical layer v2 (integrity-core guide §3-4)
+                new ModifiedZScoreOutlierRule(),
+                new RareUserAccountRule(),
+                new ThresholdBunchingRule(),
+                new ActivitySpikeRule()));
     }
 }

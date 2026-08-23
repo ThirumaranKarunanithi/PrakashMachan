@@ -26,7 +26,15 @@ public record RuleParams(
         /** Creation more than this many days after the transaction date counts as late posting (PET-02). */
         int latePostingLagDays,
         /** Close-window daily volume above this multiple of the yearly baseline is flagged (PET-01). */
-        double closeVolumeMultiple
+        double closeVolumeMultiple,
+        /** |Modified Z-score| at or above this flags a peer-group amount outlier (STA-01). */
+        double modifiedZThreshold,
+        /** A user-account combination seen this many times or fewer is rare (STA-02). */
+        int rarityMinSupport,
+        /** Trailing days forming the rolling activity baseline (STA-04). */
+        int spikeBaselineDays,
+        /** Daily count above baseline median + this many MADs is a spike (STA-04). */
+        double spikeMadMultiplier
 ) {
     public static RuleParams defaults() {
         return new RuleParams(
@@ -39,12 +47,20 @@ public record RuleParams(
                 100_000_00L,   // Rs 1,00,000 new-vendor activity
                 7,             // close window: last 7 days of the year
                 5,             // late posting: created > 5 days after the transaction date
-                3.0);          // close-window volume: > 3x the yearly daily baseline
+                3.0,           // close-window volume: > 3x the yearly daily baseline
+                2.0,           // Modified Z-score threshold: amounts are log-transformed (heavy-tailed
+                               // rupee data), which compresses deviations, so the classic raw-scale 3.5
+                               // would almost never fire; 2.0 on the log scale flags roughly 4x-and-above
+                               // the robust peer range. Firm-configurable like every parameter.
+                2,             // user-account combos seen <= 2 times are rare
+                30,            // 30-day rolling activity baseline
+                4.0);          // spike: > median + 4 MADs
     }
 
     public RuleParams withPrivilegedUsers(Set<String> users) {
         return new RuleParams(users, roundAmountThresholdPaise, roundAmountMultiplePaise, vagueWords,
                 approvalThresholdPaise, splitWindowDays, newVendorActivityThresholdPaise,
-                closeWindowDays, latePostingLagDays, closeVolumeMultiple);
+                closeWindowDays, latePostingLagDays, closeVolumeMultiple,
+                modifiedZThreshold, rarityMinSupport, spikeBaselineDays, spikeMadMultiplier);
     }
 }

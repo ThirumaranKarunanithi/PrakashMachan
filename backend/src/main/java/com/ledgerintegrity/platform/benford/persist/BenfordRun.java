@@ -22,7 +22,9 @@ public class BenfordRun {
 
     public enum Population { MANUAL_JOURNALS, ALL_VOUCHERS, PAYMENTS, PURCHASES, SALES }
 
-    public enum DigitTest { FIRST, SECOND, FIRST_TWO }
+    public enum DigitTest { FIRST, SECOND, FIRST_TWO,
+        /** Terminal-pair (last-two-digit) analysis — supporting digital test, guide §3.3. */
+        LAST_TWO }
 
     /** BRD §16.4 recommended labels. */
     public enum Suitability { SUITABLE, SUITABLE_WITH_CAUTION, NOT_SUITABLE }
@@ -40,8 +42,8 @@ public class BenfordRun {
     @Enumerated(EnumType.STRING)
     private Population population;
 
-    @Column(nullable = false)
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(12)")
     private DigitTest digitTest;
 
     @Column(nullable = false)

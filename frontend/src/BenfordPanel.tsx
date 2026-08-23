@@ -23,7 +23,7 @@ interface BenfordRun {
   suitabilityReasons: string;
   mad: number | null;
   conformity: string;
-  result: { buckets: Bucket[]; topExcessDigit?: string; topContributorsByUser?: { user: string; count: number }[] };
+  result: { buckets: Bucket[]; topExcessDigit?: string; note?: string; topContributorsByUser?: { user: string; count: number }[] };
 }
 
 interface DrillRow {
@@ -36,7 +36,13 @@ interface DrillRow {
 }
 
 const POPULATIONS = ['ALL_VOUCHERS', 'MANUAL_JOURNALS', 'PAYMENTS', 'PURCHASES', 'SALES'] as const;
-const TESTS = ['FIRST', 'SECOND', 'FIRST_TWO'] as const;
+const TESTS = ['FIRST', 'SECOND', 'FIRST_TWO', 'LAST_TWO'] as const;
+const TEST_LABELS: Record<string, string> = {
+  FIRST: 'First digit',
+  SECOND: 'Second digit',
+  FIRST_TWO: 'First two digits',
+  LAST_TWO: 'Last two digits (terminal pair — supporting test)',
+};
 
 export default function BenfordPanel({ engagementId, onChanged }: { engagementId: string; onChanged: () => void }) {
   const [population, setPopulation] = useState<string>('ALL_VOUCHERS');
@@ -97,7 +103,7 @@ export default function BenfordPanel({ engagementId, onChanged }: { engagementId
         </label>
         <label>Digit test
           <select value={digitTest} onChange={(e) => setDigitTest(e.target.value)}>
-            {TESTS.map((t) => <option key={t} value={t}>{t.replaceAll('_', ' ')}</option>)}
+            {TESTS.map((t) => <option key={t} value={t}>{TEST_LABELS[t] ?? t}</option>)}
           </select>
         </label>
       </div>
@@ -122,6 +128,7 @@ export default function BenfordPanel({ engagementId, onChanged }: { engagementId
             </tbody>
           </table>
 
+          {run.result.note && <p className="sub" style={{ fontStyle: 'italic' }}>{run.result.note}</p>}
           <p className="sub">
             In plain language: in naturally occurring amounts, smaller leading digits appear more often
             (1 ≈ 30%, 9 ≈ 4.6%). A deviation is a clue about which entries deserve review — never proof of anything.

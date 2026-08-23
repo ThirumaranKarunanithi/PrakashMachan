@@ -32,7 +32,7 @@ First use: **Register firm** on the login screen (creates the firm + its first A
 | Module | BRD | Highlights |
 |---|---|---|
 | Data import & quality | §5 DAT-001..006 | CSV, **Tally XML**, **Excel .xlsx** (dates normalised to ISO whatever the cell format; the manifest hashes the *original* workbook bytes). SHA-256 source manifest, row-level lineage `{file, row}`, mapping profiles with header checks, data-quality report (downloadable CSV), voucher-balance + trial-balance validation, idempotent delta re-imports |
-| Journal-entry testing | §6 | Rule pack `mvp-pack-0.4.0` — 16 versioned rules (JE/VP/PET/MOT families), parameters + population filters snapshotted on every run for reproducibility, source classification, risk-ranked **and** seeded-random sampling |
+| Journal-entry testing | §6 | Rule pack `mvp-pack-0.5.0` — 20 versioned rules (JE/VP/PET/MOT + STA statistical layer: peer-group Modified Z-score outliers, rare user-account combinations, threshold bunching, rolling-baseline activity spikes), parameters + population filters snapshotted on every run for reproducibility, source classification, risk-ranked **and** seeded-random sampling |
 | GST reconciliation | §7 | Purchases↔GSTR-2B, Sales↔GSTR-1, GSTR-1↔3B; 1-rupee tolerance; fuzzy suggestions with confidence scores; manual links with mandatory reason (GST-007); correction schedule CSV (GST-008); **multi-GSTIN registration summary** via optional `own_gstin` column (GST-009) |
 | Vendor & payment | §8 | Duplicate invoices, shared bank accounts, invoice splitting, bank-change-then-payment sequence |
 | Audit-trail review | §10 | Coverage-gap detection (>30-day silences), trail disablement, configuration-change linking, report-only or exception-raising modes |
@@ -41,7 +41,7 @@ First use: **Register firm** on the login screen (creates the firm + its first A
 | Management override | §13 | SoD conflicts, privileged-user posting patterns |
 | Evidence collection | §14 | Requests with due dates, versioned uploads, **client portal** (CLIENT role, sanitised DTOs, multi-file upload), overdue notifications, auditable secure deletion (SEC-006) |
 | Workpapers | §15 | HTML snapshot + SHA-256, ordered sign-off with same-person rejection (AWP-005), locked when signed (AWP-006), firm-versioned templates (AWP-001), HTML/Word export |
-| Benford's Law | §16 | Suitability gate **before** scoring (population size, orders of magnitude, dominant-value checks), first/second/first-two digit tests, Nigrini MAD bands, drill-down, prior-period comparison, deliberately neutral wording |
+| Benford's Law | §16 | Suitability gate **before** scoring (population size, orders of magnitude, dominant-value checks), first/second/first-two digit tests plus a last-two-digit terminal-pair supporting test, Nigrini MAD bands, drill-down, prior-period comparison, deliberately neutral wording |
 | Risk scoring & cases | §17 | Exceptions consolidated into cases by shared voucher/vendor/bank/invoice tokens (union-find, merge-stable); explainable scores; firm-configurable weights; reviewer priority override with recorded reason |
 | Dashboards & alerts | §18 | Portfolio view, risk explorer, deduplicated in-app notifications (NFR-003), methodology settings |
 | Security & tenancy | §19 | Session auth (BCrypt), roles ADMIN/PARTNER/MANAGER/ASSOCIATE/CLIENT, firm-scoped TenantGuard (cross-tenant → 404), append-only audit log on every request |

@@ -113,7 +113,14 @@ public class BenfordService {
                 extras.put("topContributorsByUser", contributorsByUser(eligible, digitTest, top.digit()));
             }
 
-            if (conformity == Conformity.MARGINAL || conformity == Conformity.NONCONFORMITY) {
+            // Guide §3.3: terminal-pair concentration is a SUPPORTING digital-forensics
+            // signal (pricing, tax rounding and system conventions legitimately cluster
+            // endings) - it is reported with drill-down but never raises an exception.
+            if (digitTest == DigitTest.LAST_TWO) {
+                extras.put("note", "Supporting digital test: terminal-pair concentration is compared"
+                        + " against a uniform reference and can be caused by legitimate pricing, tax"
+                        + " rounding or system convention. No exception is raised from this test.");
+            } else if (conformity == Conformity.MARGINAL || conformity == Conformity.NONCONFORMITY) {
                 exceptionId = raiseException(engagementId, run, mad, conformity, top, eligible);
             }
         }
@@ -158,6 +165,7 @@ public class BenfordService {
             case FIRST -> String.valueOf(firstTwo / 10);
             case SECOND -> String.valueOf(firstTwo % 10);
             case FIRST_TWO -> String.valueOf(firstTwo);
+            case LAST_TWO -> String.format("%02d", (amountPaise / 100) % 100);
         };
     }
 
@@ -167,6 +175,7 @@ public class BenfordService {
         return switch (test) {
             case FIRST -> Math.log10(1.0 + 1.0 / d) * 100;
             case FIRST_TWO -> Math.log10(1.0 + 1.0 / d) * 100;
+            case LAST_TWO -> 1.0; // uniform reference across the 00-99 endings
             case SECOND -> {
                 double p = 0;
                 for (int d1 = 1; d1 <= 9; d1++) p += Math.log10(1.0 + 1.0 / (10 * d1 + d));
@@ -181,6 +190,7 @@ public class BenfordService {
             case FIRST -> { for (int d = 1; d <= 9; d++) out.add(String.valueOf(d)); }
             case SECOND -> { for (int d = 0; d <= 9; d++) out.add(String.valueOf(d)); }
             case FIRST_TWO -> { for (int d = 10; d <= 99; d++) out.add(String.valueOf(d)); }
+            case LAST_TWO -> { for (int d = 0; d <= 99; d++) out.add(String.format("%02d", d)); }
         }
         return out;
     }
@@ -207,7 +217,7 @@ public class BenfordService {
         int min = switch (test) {
             case FIRST -> MIN_FIRST;
             case SECOND -> MIN_SECOND;
-            case FIRST_TWO -> MIN_FIRST_TWO;
+            case FIRST_TWO, LAST_TWO -> MIN_FIRST_TWO;
         };
         if (eligible.size() < min) {
             reasons.add("Population of " + eligible.size() + " eligible amounts is below the methodology minimum of "
@@ -239,7 +249,7 @@ public class BenfordService {
         double[] t = switch (test) {
             case FIRST -> new double[]{0.006, 0.012, 0.015};
             case SECOND -> new double[]{0.008, 0.010, 0.012};
-            case FIRST_TWO -> new double[]{0.0012, 0.0018, 0.0022};
+            case FIRST_TWO, LAST_TWO -> new double[]{0.0012, 0.0018, 0.0022};
         };
         if (mad < t[0]) return Conformity.CLOSE;
         if (mad < t[1]) return Conformity.ACCEPTABLE;

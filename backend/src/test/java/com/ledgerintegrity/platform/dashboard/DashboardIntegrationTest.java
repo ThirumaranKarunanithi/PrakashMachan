@@ -75,8 +75,9 @@ class DashboardIntegrationTest {
         var row = portfolio.get(0);
         assertEquals("CLIENT-A", row.clientName());
         assertEquals(3008, row.populationCount());
-        // 25 raised, 1 CONFIRMED closed it; the evidence request moved another to INFO_REQUIRED (still open)
-        assertEquals(24, row.openExceptions());
+        // 26 raised (pack 0.5.0 adds the STA-01 outlier), 1 CONFIRMED closed it;
+        // the evidence request moved another to INFO_REQUIRED (still open)
+        assertEquals(25, row.openExceptions());
         assertTrue(row.openHigh() >= 3);
         assertEquals(1, row.confirmedExceptions());
         assertEquals(49_00_000_00L, row.confirmedExposurePaise()); // RSK-005: kept apart

@@ -98,14 +98,15 @@ class RuleEngineIntegrationTest {
         assertTrue(all.stream().allMatch(x -> x.getSourceRefs().contains("general_ledger.csv:")));
 
         // run parameters are snapshotted for reproducibility (JET-007)
-        assertEquals("mvp-pack-0.4.0", result.run().getPackVersion());
+        assertEquals("mvp-pack-0.5.0", result.run().getPackVersion());
         assertTrue(result.run().getParamsJson().contains("privilegedUsers"));
 
         // XC-05: related exceptions consolidate into one case per underlying event.
-        // 25 exceptions -> 7 cases (the JE-06 pair finding bridges the 90003 and 90004 cases);
+        // 26 exceptions -> 8 cases (the JE-06 pair finding bridges the 90003 and 90004 cases;
+        // pack 0.5.0 adds the STA-01 peer-group outlier PUR-01145 as its own case);
         // JRN-90001/90002 (9 signals) is the top-priority case.
         List<InvestigationCase> consolidated = result.cases();
-        assertEquals(7, consolidated.size());
+        assertEquals(8, consolidated.size());
         InvestigationCase top = consolidated.get(0);
         assertEquals("JRN-90001 JRN-90002", top.getVoucherIds());
         assertEquals(Finding.Severity.HIGH, top.getSeverity());
@@ -121,7 +122,7 @@ class RuleEngineIntegrationTest {
         assertEquals(0, second.run().getExceptionsCreated());
         assertEquals(all.size(), second.run().getSkippedExisting());
         assertEquals(all.size(), exceptions.countByEngagementId(e.getId()));
-        assertEquals(7, cases.countByEngagementId(e.getId()));
+        assertEquals(8, cases.countByEngagementId(e.getId()));
         // case identity survives the re-run (review history stays attached)
         assertTrue(second.cases().stream().anyMatch(c -> c.getId().equals(top.getId())));
     }

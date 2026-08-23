@@ -76,8 +76,8 @@ class CrossSignalIntegrationTest {
         var result = engine.run(e.getId(), RuleParams.defaults().withPrivilegedUsers(Set.of("ADMIN-1", "MGR-1")));
 
         List<ExceptionCase> all = exceptions.findByEngagementIdOrderBySeverityAscExposurePaiseDesc(e.getId());
-        // previous 39 + JE-06 x3 (rare account pairs) = 42
-        assertEquals(42, all.size());
+        // previous 42 + STA-01 (the PUR-01145 peer-group outlier by ADMIN-1) = 43
+        assertEquals(43, all.size());
         assertEquals(3, all.stream().filter(x -> x.getRuleId().equals("JE-06")).count());
         for (String rule : List.of("VP-01", "VP-03", "VP-04", "VP-05", "VP-06", "PET-02", "PET-04")) {
             assertEquals(1, all.stream().filter(x -> x.getRuleId().equals(rule)).count(), rule);
@@ -114,7 +114,7 @@ class CrossSignalIntegrationTest {
         gstRecon.reconcile(e.getId());
         var second = engine.run(e.getId(), RuleParams.defaults().withPrivilegedUsers(Set.of("ADMIN-1", "MGR-1")));
         assertEquals(0, second.run().getExceptionsCreated());
-        assertEquals(42, exceptions.countByEngagementId(e.getId()));
+        assertEquals(43, exceptions.countByEngagementId(e.getId()));
     }
 
     private static Set<String> ruleIdsOf(List<ExceptionCase> all, InvestigationCase c) {

@@ -20,6 +20,19 @@ class BenfordMathTest {
     }
 
     @Test
+    void terminalPairUsesTheRupeeEndingAndAUniformReference() {
+        // Rs 1,234.56 -> rupee value 1234 -> ending "34"
+        assertEquals("34", BenfordService.digitLabel(1_234_56L, DigitTest.LAST_TWO));
+        // Rs 1,50,000 -> ending "00" (the classic round-amount preference)
+        assertEquals("00", BenfordService.digitLabel(1_50_000_00L, DigitTest.LAST_TWO));
+        // Rs 49,999 -> ending "99" (just-below-threshold preference)
+        assertEquals("99", BenfordService.digitLabel(49_999_00L, DigitTest.LAST_TWO));
+        // uniform reference: every ending expects 1%
+        assertEquals(1.0, BenfordService.expectedPct("00", DigitTest.LAST_TWO), 0.0001);
+        assertEquals(1.0, BenfordService.expectedPct("47", DigitTest.LAST_TWO), 0.0001);
+    }
+
+    @Test
     void expectedProportionsMatchTheBenfordFormula() {
         assertEquals(30.10, BenfordService.expectedPct("1", DigitTest.FIRST), 0.01);
         assertEquals(4.58, BenfordService.expectedPct("9", DigitTest.FIRST), 0.01);
