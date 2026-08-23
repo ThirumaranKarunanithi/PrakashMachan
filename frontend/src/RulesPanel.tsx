@@ -278,6 +278,7 @@ function CaseView({ c, engagementId, onSaved }: { c: InvestigationCase; engageme
         <p className="sub" style={{ margin: '8px 0 0' }}>
           {familyChips(c.familyScoresJson)} priority {c.effectivePriority} · ₹ {inr(c.exposurePaise)} · {c.openCount}/{c.exceptionCount} open
         </p>
+        <AiDraft url={`/api/cases/${c.id}/ai-summary`} label="AI case summary" />
         <div style={{ padding: '4px 0 0' }}>
           <a href="#" className="sub" onClick={(e) => { e.preventDefault(); setShowOverride(!showOverride); }}>
             {showOverride ? 'Hide priority override' : 'Override review priority (RSK-004)'}
@@ -520,6 +521,7 @@ function ExceptionRow({ c, engagementId, onSaved }: { c: ExceptionCase; engageme
         {c.reason}
         <div className="sub mono">{c.sourceRefs}</div>
         <SourceContext engagementId={engagementId} voucherIds={c.voucherIds} />
+        <AiDraft url={`/api/exceptions/${c.id}/ai-explain`} label="Explain in plain language" />
         {c.decidedBy && <div className="sub">Decided by {c.decidedBy} · {c.decidedAt && new Date(c.decidedAt).toLocaleString('en-IN')}</div>}
         <DecisionHistory exceptionId={c.id} />
       </td>
@@ -617,6 +619,50 @@ function SourceContext({ engagementId, voucherIds }: { engagementId: string; vou
             ))}
           </tbody>
         </table>
+      )}
+    </div>
+  );
+}
+
+
+/** Guide §12: AI output is a labelled DRAFT — it never becomes a record on its own. */
+function AiDraft({ url, label }: { url: string; label: string }) {
+  const [note, setNote] = useState<{ output: string; model: string; promptVersion: string; cached: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load(refresh: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(url + (refresh ? '?refresh=true' : ''), { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? `Failed (${res.status})`);
+      setNote(body);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="sub" style={{ marginTop: 4 }}>
+      {!note && (
+        <a href="#" onClick={(e) => { e.preventDefault(); if (!busy) void load(false); }}>
+          ✨ {busy ? 'Drafting…' : label + ' (AI draft)'}
+        </a>
+      )}
+      {error && <span className="error"> {error}</span>}
+      {note && (
+        <div style={{ background: '#f4f0ff', border: '1px solid #ddd3f5', borderRadius: 7, padding: '8px 11px', marginTop: 4 }}>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{note.output}</div>
+          <div className="sub" style={{ marginTop: 6 }}>
+            AI draft — review required · {note.model} · {note.promptVersion}{note.cached ? ' · cached' : ''}
+            {' · '}<a href="#" onClick={(e) => { e.preventDefault(); void load(true); }}>redraft</a>
+            {' · '}<a href="#" onClick={(e) => { e.preventDefault(); setNote(null); }}>hide</a>
+          </div>
+        </div>
       )}
     </div>
   );
