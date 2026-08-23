@@ -13,6 +13,11 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, Long> 
 
     List<LedgerEntry> findByEngagementId(UUID engagementId);
 
+    List<LedgerEntry> findByEngagementIdAndVoucherId(UUID engagementId, String voucherId);
+
+    List<LedgerEntry> findByEngagementIdAndSourceFileAndSourceRowBetweenOrderBySourceRowAsc(
+            UUID engagementId, String sourceFile, int fromRow, int toRow);
+
     /** Existing content identities for an engagement — input to delta import (DAT-006). */
     @Query("select e.identityHash from LedgerEntry e where e.engagementId = :engagementId")
     List<String> findIdentityHashes(@Param("engagementId") UUID engagementId);

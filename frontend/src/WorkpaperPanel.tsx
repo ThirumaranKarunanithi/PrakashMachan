@@ -74,6 +74,9 @@ export default function WorkpaperPanel({ engagementId }: { engagementId: string 
       <div className="btn-row">
         <button onClick={generate} disabled={busy}>Generate workpaper version</button>
         <span className="sub">Sign-offs are recorded under your login identity.</span>
+        <a href={api(`/api/engagements/${engagementId}/audit-pack.zip`)} download>
+          <button type="button">Audit File Pack (.zip)</button>
+        </a>
       </div>
       {error && <p className="error">{error}</p>}
 
@@ -100,7 +103,7 @@ export default function WorkpaperPanel({ engagementId }: { engagementId: string 
                       </button>
                     )}
                   </td>
-                  <td><a href={api(`/api/workpapers/${w.id}/export.html`)} download>HTML</a> · <a href={api(`/api/workpapers/${w.id}/export.doc`)} download>Word</a></td>
+                  <td><a href={api(`/api/workpapers/${w.id}/export.html`)} download>HTML</a> · <a href={api(`/api/workpapers/${w.id}/export.doc`)} download>Word</a> · <a href={api(`/api/workpapers/${w.id}/export.pdf`)} download>PDF</a></td>
                 </tr>
               );
             })}

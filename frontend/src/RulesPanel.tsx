@@ -89,6 +89,11 @@ function ExplorerTable({ title, slices }: { title: string; slices: Slice[] }) {
 
 export default function RulesPanel({ engagementId }: { engagementId: string }) {
   const [privilegedUsers, setPrivilegedUsers] = useState('ADMIN-1, MGR-1');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [voucherTypes, setVoucherTypes] = useState('');
+  const [filterUsers, setFilterUsers] = useState('');
+  const [minAmount, setMinAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRun, setLastRun] = useState<RuleRun | null>(null);
@@ -114,6 +119,11 @@ export default function RulesPanel({ engagementId }: { engagementId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           privilegedUsers: privilegedUsers.split(',').map((s) => s.trim()).filter(Boolean),
+          dateFrom: dateFrom || null,
+          dateTo: dateTo || null,
+          voucherTypes: voucherTypes ? voucherTypes.split(',').map((s) => s.trim()).filter(Boolean) : null,
+          users: filterUsers ? filterUsers.split(',').map((s) => s.trim()).filter(Boolean) : null,
+          minAmountRupees: minAmount ? Number(minAmount) : null,
         }),
       });
       const body = await res.json();
@@ -143,6 +153,17 @@ export default function RulesPanel({ engagementId }: { engagementId: string }) {
           </select>
         </label>
       </div>
+      <details>
+        <summary>Population filters (optional) — Screen-3 population builder</summary>
+        <div className="form-grid">
+          <label>Date from<input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></label>
+          <label>Date to<input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></label>
+          <label>Voucher types (comma-separated)<input placeholder="Journal, Payment" value={voucherTypes} onChange={(e) => setVoucherTypes(e.target.value)} /></label>
+          <label>Users (comma-separated)<input placeholder="ACCT-1" value={filterUsers} onChange={(e) => setFilterUsers(e.target.value)} /></label>
+          <label>Minimum amount (₹)<input type="number" min={0} step={1} value={minAmount} onChange={(e) => setMinAmount(e.target.value)} /></label>
+        </div>
+        <p className="sub">The saved run snapshots these filters with the results, so every score stays reproducible.</p>
+      </details>
       <button onClick={runRules} disabled={busy}>
         {busy ? 'Running…' : 'Run rule pack'}
       </button>
@@ -177,7 +198,7 @@ export default function RulesPanel({ engagementId }: { engagementId: string }) {
       )}
 
       <ModelChips cases={cases} />
-      {visible.map((c) => <CaseView key={c.id} c={c} onSaved={loadCases} />)}
+      {visible.map((c) => <CaseView key={c.id} c={c} engagementId={engagementId} onSaved={loadCases} />)}
       {visible.length === 0 && <p className="sub">No {showResolved ? '' : 'open '}cases. Run the rule pack after importing data.</p>}
     </section>
   );
@@ -202,7 +223,7 @@ function familyChips(json: string | null) {
   }
 }
 
-function CaseView({ c, onSaved }: { c: InvestigationCase; onSaved: () => Promise<void> }) {
+function CaseView({ c, engagementId, onSaved }: { c: InvestigationCase; engagementId: string; onSaved: () => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [showOverride, setShowOverride] = useState(false);
   const [timeline, setTimeline] = useState<{ when: string; source: string; description: string }[] | null>(null);
@@ -293,7 +314,7 @@ function CaseView({ c, onSaved }: { c: InvestigationCase; onSaved: () => Promise
             <tr><th>Rule</th><th>Severity</th><th>Exposure</th><th>Why it was flagged</th><th>Status &amp; decision</th></tr>
           </thead>
           <tbody>
-            {c.exceptions.map((e) => <ExceptionRow key={e.id} c={e} onSaved={onSaved} />)}
+            {c.exceptions.map((e) => <ExceptionRow key={e.id} c={e} engagementId={engagementId} onSaved={onSaved} />)}
           </tbody>
         </table>
       </aside>
@@ -462,7 +483,7 @@ function MethodologyBlock() {
   );
 }
 
-function ExceptionRow({ c, onSaved }: { c: ExceptionCase; onSaved: () => Promise<void> }) {
+function ExceptionRow({ c, engagementId, onSaved }: { c: ExceptionCase; engagementId: string; onSaved: () => Promise<void> }) {
   const [status, setStatus] = useState(c.status);
   const [note, setNote] = useState(c.decisionNote ?? '');
   const [saving, setSaving] = useState(false);
@@ -498,6 +519,7 @@ function ExceptionRow({ c, onSaved }: { c: ExceptionCase; onSaved: () => Promise
       <td>
         {c.reason}
         <div className="sub mono">{c.sourceRefs}</div>
+        <SourceContext engagementId={engagementId} voucherIds={c.voucherIds} />
         {c.decidedBy && <div className="sub">Decided by {c.decidedBy} · {c.decidedAt && new Date(c.decidedAt).toLocaleString('en-IN')}</div>}
         <DecisionHistory exceptionId={c.id} />
       </td>
@@ -544,6 +566,58 @@ function DecisionHistory({ exceptionId }: { exceptionId: string }) {
               {h.note && <> — {h.note}</>}
             </div>
           )))}
+    </div>
+  );
+}
+
+
+/** Screen-7 "adjacent rows preview": the flagged voucher inside its original file. */
+function SourceContext({ engagementId, voucherIds }: { engagementId: string; voucherIds: string }) {
+  const [ctx, setCtx] = useState<{
+    file: string; rows: { sourceRow: number; voucherId: string; txnDate: string; accountCode: string;
+      accountName: string; debitPaise: number | null; creditPaise: number | null;
+      narration: string; userId: string; flagged: boolean }[];
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const voucher = voucherIds.split(' ').find((v) => !v.includes(':')); // skip synthetic tokens
+
+  if (!voucher) return null;
+
+  async function load() {
+    if (ctx) { setCtx(null); return; }
+    setError(null);
+    const res = await fetch(`/api/engagements/${engagementId}/source-context?voucherId=${encodeURIComponent(voucher!)}`);
+    if (res.ok) setCtx(await res.json());
+    else setError('Source context is not available for this voucher.');
+  }
+
+  return (
+    <div className="sub">
+      <a href="#" onClick={(e) => { e.preventDefault(); void load(); }}>
+        {ctx ? 'Hide source rows ▾' : `View source rows around ${voucher} ▸`}
+      </a>
+      {error && <span className="error"> {error}</span>}
+      {ctx && (
+        <table>
+          <thead>
+            <tr><th>Row</th><th>Voucher</th><th>Date</th><th>Account</th><th className="num">Debit</th><th className="num">Credit</th><th>Narration</th><th>User</th></tr>
+          </thead>
+          <tbody>
+            {ctx.rows.map((r) => (
+              <tr key={r.sourceRow} style={r.flagged ? { background: '#fff4e0' } : undefined}>
+                <td className="mono">{ctx.file}:{r.sourceRow}</td>
+                <td>{r.voucherId}{r.flagged ? ' ◀' : ''}</td>
+                <td>{r.txnDate}</td>
+                <td>{r.accountCode} {r.accountName}</td>
+                <td className="num">{r.debitPaise != null ? '₹ ' + inr(r.debitPaise) : ''}</td>
+                <td className="num">{r.creditPaise != null ? '₹ ' + inr(r.creditPaise) : ''}</td>
+                <td>{r.narration}</td>
+                <td>{r.userId}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
