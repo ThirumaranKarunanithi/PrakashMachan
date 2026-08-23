@@ -46,7 +46,7 @@ public class AiExplanationService {
                                 @Value("${app.ai.model:claude-opus-5}") String model) {
         this.notes = notes;
         this.apiKey = apiKey == null ? "" : apiKey.trim();
-        this.model = model;
+        this.model = model == null ? "claude-opus-5" : model.trim();
     }
 
     public boolean enabled() {

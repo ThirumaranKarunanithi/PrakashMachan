@@ -102,9 +102,10 @@ public class AiController {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "The AI provider is rate-limiting requests — try again in a minute.");
         } catch (com.anthropic.errors.AnthropicServiceException e) {
+            String detail = e.getMessage() == null ? "" : e.getMessage();
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "The AI provider returned an error (" + e.statusCode() + "). Check the model"
-                            + " name and the account's credit balance.");
+                    "The AI provider returned an error (" + e.statusCode() + "): "
+                            + (detail.length() > 250 ? detail.substring(0, 250) : detail));
         } catch (com.anthropic.errors.AnthropicException e) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "Could not reach the AI provider: " + e.getClass().getSimpleName());
