@@ -123,7 +123,7 @@ public class EvidenceController {
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=\"" + d.getFileName().replace("\"", "") + "\"")
                 .header("Content-Type", d.getContentType())
-                .body(d.getContent());
+                .body(service.contentOf(d));
     }
 
     @ExceptionHandler(ResponseStatusException.class)

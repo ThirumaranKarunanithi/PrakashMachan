@@ -38,6 +38,11 @@ public class EvidenceDocument {
     @Column(nullable = false, columnDefinition = "bytea")
     private byte[] content;
 
+    /** SEC-004: true when content is AES-GCM encrypted at rest (flagged per row so
+     *  documents stored before the key existed remain readable). */
+    @Column(columnDefinition = "boolean default false not null")
+    private boolean encrypted;
+
     @Column(nullable = false)
     private long sizeBytes;
 
@@ -72,6 +77,8 @@ public class EvidenceDocument {
     public String getFileName() { return fileName; }
     public String getContentType() { return contentType; }
     public byte[] getContent() { return content; }
+    public boolean isEncrypted() { return encrypted; }
+    public void setEncrypted(boolean v) { this.encrypted = v; }
     public long getSizeBytes() { return sizeBytes; }
     public String getSha256() { return sha256; }
     public String getUploadedBy() { return uploadedBy; }

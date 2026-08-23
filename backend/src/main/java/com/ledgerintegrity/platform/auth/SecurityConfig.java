@@ -42,8 +42,19 @@ public class SecurityConfig {
     SecurityFilterChain filterChain(HttpSecurity http,
                                     @org.springframework.beans.factory.annotation.Value("${app.cors-allowed-origins:}") String corsOrigins)
             throws Exception {
+        // Phase A: CSRF is ON. Tokens live in the server-side session; the SPA fetches
+        // one from GET /api/auth/csrf after signing in and echoes it as X-XSRF-TOKEN on
+        // every mutating call (works cross-origin, where a token cookie would be
+        // unreadable). Credential-carrying entry points are exempt: they establish the
+        // session in the first place and are protected by SameSite + CORS.
+        var csrfRepo = new org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository();
+        csrfRepo.setHeaderName("X-XSRF-TOKEN");
+        var csrfHandler = new org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler();
         http
-                .csrf(csrf -> csrf.disable())
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(csrfRepo)
+                        .csrfTokenRequestHandler(csrfHandler)
+                        .ignoringRequestMatchers("/api/auth/login", "/api/auth/register-firm", "/api/auth/demo"))
                 .cors(cors -> cors.configurationSource(corsSource(corsOrigins)))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()

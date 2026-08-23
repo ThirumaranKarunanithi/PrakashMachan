@@ -117,6 +117,7 @@ class ClientPortalSecurityTest {
         form.add("mapping", "client-a-gl");
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.COOKIE, cookie);
+        headers.add("X-XSRF-TOKEN", csrfFor(cookie));
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         assertEquals(HttpStatus.OK, rest.exchange("/api/engagements/" + engagementId + "/imports",
                 HttpMethod.POST, new HttpEntity<>(form, headers), String.class).getStatusCode());
@@ -139,6 +140,7 @@ class ClientPortalSecurityTest {
         form.add("file", namedFile(fileName, content));
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.COOKIE, cookie);
+        headers.add("X-XSRF-TOKEN", csrfFor(cookie));
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         return rest.exchange("/api/client/requests/" + requestId + "/documents",
                 HttpMethod.POST, new HttpEntity<>(form, headers), Map.class);
@@ -160,6 +162,21 @@ class ClientPortalSecurityTest {
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.COOKIE, cookie);
         if (body != null) headers.setContentType(MediaType.APPLICATION_JSON);
+        if (method != HttpMethod.GET) headers.add("X-XSRF-TOKEN", csrfFor(cookie));
         return rest.exchange(path, method, new HttpEntity<>(body, headers), type);
     }
+
+    // Phase A: complete the CSRF handshake like a real client
+    private final java.util.Map<String, String> csrfBySession = new java.util.HashMap<>();
+
+    private String csrfFor(String cookie) {
+        return csrfBySession.computeIfAbsent(cookie, c -> {
+            HttpHeaders h = new HttpHeaders();
+            h.add(HttpHeaders.COOKIE, c);
+            Map<?, ?> body = rest.exchange("/api/auth/csrf", HttpMethod.GET,
+                    new HttpEntity<>(h), Map.class).getBody();
+            return (String) body.get("token");
+        });
+    }
+
 }

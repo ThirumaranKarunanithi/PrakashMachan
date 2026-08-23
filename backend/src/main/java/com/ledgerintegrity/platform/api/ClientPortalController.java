@@ -86,7 +86,7 @@ public class ClientPortalController {
                     return ResponseEntity.ok()
                             .header("Content-Disposition", "attachment; filename=\"" + d.getFileName().replace("\"", "") + "\"")
                             .header("Content-Type", d.getContentType())
-                            .body(d.getContent());
+                            .body(evidenceService.contentOf(d));
                 }
             }
         }

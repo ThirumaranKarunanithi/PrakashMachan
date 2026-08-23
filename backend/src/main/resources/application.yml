@@ -1,4 +1,10 @@
 spring:
+  session:
+    # Phase A: sessions survive restarts (stored in the same database)
+    store-type: jdbc
+    timeout: 12h
+    jdbc:
+      initialize-schema: always
   application:
     name: ledger-integrity-platform
   servlet:
@@ -37,6 +43,10 @@ app:
   # "For now" demo mode: /api/auth/demo signs visitors into a shared demo firm without
   # credentials and the frontend skips the login screen. Set to false to restore logins.
   demo-autologin: ${APP_DEMO_AUTOLOGIN:true}
+  security:
+    # Phase A: AES-256-GCM key (Base64, 32 bytes) for evidence documents at rest.
+    # Generate with: openssl rand -base64 32. Unset = documents stored unencrypted.
+    encryption-key: ${APP_ENCRYPTION_KEY:}
   ai:
     # AI assistance (guide 12): unset key = feature off; the platform never calls
     # the provider without it. Model is configurable to manage spend.

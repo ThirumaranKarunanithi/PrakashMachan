@@ -113,6 +113,21 @@ class TenancySecurityTest {
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.COOKIE, cookie);
         if (body != null) headers.setContentType(MediaType.APPLICATION_JSON);
+        if (method != HttpMethod.GET) headers.add("X-XSRF-TOKEN", csrfFor(cookie));
         return rest.exchange(path, method, new HttpEntity<>(body, headers), type);
     }
+
+    // Phase A: complete the CSRF handshake like a real client
+    private final java.util.Map<String, String> csrfBySession = new java.util.HashMap<>();
+
+    private String csrfFor(String cookie) {
+        return csrfBySession.computeIfAbsent(cookie, c -> {
+            HttpHeaders h = new HttpHeaders();
+            h.add(HttpHeaders.COOKIE, c);
+            Map<?, ?> body = rest.exchange("/api/auth/csrf", HttpMethod.GET,
+                    new HttpEntity<>(h), Map.class).getBody();
+            return (String) body.get("token");
+        });
+    }
+
 }

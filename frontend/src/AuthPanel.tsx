@@ -7,6 +7,7 @@ export interface Me {
   firmId: string;
   firmName: string;
   passwordResetRequired?: boolean;
+  mfaEnabled?: boolean;
 }
 
 export default function AuthPanel({ onAuthed }: { onAuthed: (me: Me) => void }) {
@@ -17,6 +18,8 @@ export default function AuthPanel({ onAuthed }: { onAuthed: (me: Me) => void }) 
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaAsked, setMfaAsked] = useState(false);
 
   async function submit() {
     setBusy(true);
@@ -24,7 +27,7 @@ export default function AuthPanel({ onAuthed }: { onAuthed: (me: Me) => void }) 
     try {
       const url = mode === 'login' ? '/api/auth/login' : '/api/auth/register-firm';
       const body = mode === 'login'
-        ? { email, password }
+        ? { email, password, mfaCode: mfaCode || null }
         : { firmName, displayName, email, password };
       const res = await fetch(url, {
         method: 'POST',
@@ -33,6 +36,7 @@ export default function AuthPanel({ onAuthed }: { onAuthed: (me: Me) => void }) 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Failed (${res.status})`);
+      if (data.mfaRequired) { setMfaAsked(true); return; } // password ok - now the code
       onAuthed(data as Me);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -62,10 +66,17 @@ export default function AuthPanel({ onAuthed }: { onAuthed: (me: Me) => void }) 
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                  onKeyDown={(e) => e.key === 'Enter' && submit()} />
         </label>
+        {mfaAsked && (
+          <label>Authenticator code
+            <input inputMode="numeric" maxLength={6} placeholder="6-digit code" value={mfaCode}
+                   onChange={(e) => setMfaCode(e.target.value)}
+                   onKeyDown={(e) => e.key === 'Enter' && submit()} autoFocus />
+          </label>
+        )}
       </div>
       <button onClick={submit} disabled={busy || !email.trim() || !password
         || (mode === 'register' && (!firmName.trim() || !displayName.trim()))}>
-        {busy ? 'Working…' : mode === 'login' ? 'Sign in' : 'Create firm & sign in'}
+        {busy ? 'Working…' : mfaAsked ? 'Verify code' : mode === 'login' ? 'Sign in' : 'Create firm & sign in'}
       </button>
       {error && <p className="error">{error}</p>}
       <p className="sub" style={{ marginTop: 14 }}>

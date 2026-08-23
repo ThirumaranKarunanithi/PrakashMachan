@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api, setCsrfToken } from './api';
 import { useCallback, useEffect, useState } from 'react';
 import type { Engagement, ImportBatch, ImportSummary, MappingProfile } from './types';
 import { inr } from './types';
@@ -62,7 +62,14 @@ export default function App() {
     }
   }, [selected?.id]);
 
-  useEffect(() => { if (me) void refresh(); }, [me]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!me) { setCsrfToken(null); return; }
+    fetch('/api/auth/csrf')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((t) => setCsrfToken(t ? t.token : null))
+      .catch(() => setCsrfToken(null));
+    if (me.role !== 'CLIENT') void refresh();
+  }, [me]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (me === undefined) return <main><p className="sub">Loading…</p></main>;
   if (me && me.role === 'CLIENT') {
@@ -99,10 +106,11 @@ export default function App() {
     { group: 'Workflow', items: [
       { key: 'evidence', label: 'Evidence', ico: '✉' },
       { key: 'workpapers', label: 'Workpapers', ico: '✍' },
+      { key: 'security', label: 'Account Security', ico: '🛡' },
     ]},
   ];
 
-  const needsEngagement = !['engagements', 'customers', 'billing'].includes(view);
+  const needsEngagement = !['engagements', 'customers', 'billing', 'security'].includes(view);
 
   return (
     <div className="shell">
@@ -154,6 +162,7 @@ export default function App() {
           </section>
         )}
 
+        {view === 'security' && <SecurityView me={me} onChanged={(m) => setMe(m)} />}
         {view === 'customers' && <CustomersView onOpen={(id) => {
           const found = engagements.find((x) => x.id === id) ?? null;
           setSelected(found); void refresh(id); setView('overview');
@@ -363,6 +372,80 @@ function RuleExposureChart({ slices, onOpen }: { slices: OvSlice[]; onOpen: () =
   );
 }
 
+
+
+// ---------- account security (Phase A: MFA) ----------
+
+function SecurityView({ me, onChanged }: { me: Me; onChanged: (m: Me) => void }) {
+  const [setup, setSetup] = useState<{ secret: string; otpauthUri: string } | null>(null);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function post(url: string, body?: object) {
+    setBusy(true); setError(null); setMessage(null);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Failed (${res.status})`);
+      return data;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card" style={{ maxWidth: 640 }}>
+      <h2>Account security — {me.email}</h2>
+      <p className="sub">Multi-factor authentication (SEC-001): once enabled, every sign-in needs your password AND a 6-digit code from an authenticator app (Google Authenticator, Microsoft Authenticator, Aegis…).</p>
+
+      {me.mfaEnabled ? (
+        <>
+          <p className="ok-text">✓ MFA is enabled on this account.</p>
+          <div className="btn-row">
+            <input inputMode="numeric" maxLength={6} placeholder="Current 6-digit code" value={code}
+                   onChange={(e) => setCode(e.target.value)} style={{ width: 170 }} />
+            <button disabled={busy || code.length !== 6} onClick={async () => {
+              const m = await post('/api/auth/mfa/disable', { code });
+              if (m) { onChanged(m); setCode(''); setMessage('MFA disabled.'); }
+            }}>Disable MFA</button>
+          </div>
+        </>
+      ) : !setup ? (
+        <button disabled={busy} onClick={async () => {
+          const s2 = await post('/api/auth/mfa/setup');
+          if (s2) setSetup(s2);
+        }}>Set up MFA</button>
+      ) : (
+        <>
+          <p>1 · In your authenticator app, choose <b>Add account → Enter key manually</b> and paste:</p>
+          <p className="mono" style={{ fontSize: '1rem', userSelect: 'all' }}>{setup.secret}</p>
+          <p className="sub">(or add via URI: <span className="mono">{setup.otpauthUri}</span>)</p>
+          <p>2 · Enter the 6-digit code the app shows to switch MFA on:</p>
+          <div className="btn-row">
+            <input inputMode="numeric" maxLength={6} placeholder="6-digit code" value={code}
+                   onChange={(e) => setCode(e.target.value)} style={{ width: 150 }} />
+            <button disabled={busy || code.length !== 6} onClick={async () => {
+              const m = await post('/api/auth/mfa/enable', { code });
+              if (m) { onChanged(m); setSetup(null); setCode(''); setMessage('MFA is now required on every sign-in.'); }
+            }}>Verify & enable</button>
+          </div>
+        </>
+      )}
+      {message && <p className="ok-text">{message}</p>}
+      {error && <p className="error">{error}</p>}
+      <p className="sub" style={{ marginTop: 14 }}>Also here: <b>change password</b> any time via your profile — and evidence documents are encrypted at rest once APP_ENCRYPTION_KEY is set on the server.</p>
+    </section>
+  );
+}
 
 // ---------- commercial layer (Screen 2): customers, pricing, billing ----------
 

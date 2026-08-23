@@ -52,6 +52,13 @@ public class AppUser {
     @jakarta.persistence.Column(columnDefinition = "boolean default false not null")
     private boolean passwordResetRequired;
 
+    /** SEC-001 / AC-15: TOTP multi-factor authentication. Secret is Base32 (RFC 6238). */
+    @jakarta.persistence.Column(length = 64)
+    private String totpSecret;
+
+    @jakarta.persistence.Column(columnDefinition = "boolean default false not null")
+    private boolean mfaEnabled;
+
     protected AppUser() {} // JPA
 
     public AppUser(UUID id, UUID firmId, String email, String passwordHash,
@@ -83,4 +90,8 @@ public class AppUser {
     public boolean isPasswordResetRequired() { return passwordResetRequired; }
     public void setPasswordResetRequired(boolean v) { this.passwordResetRequired = v; }
     public void setPasswordHash(String hash) { this.passwordHash = hash; }
+    public String getTotpSecret() { return totpSecret; }
+    public void setTotpSecret(String s) { this.totpSecret = s; }
+    public boolean isMfaEnabled() { return mfaEnabled; }
+    public void setMfaEnabled(boolean v) { this.mfaEnabled = v; }
 }

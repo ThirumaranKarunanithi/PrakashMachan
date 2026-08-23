@@ -33,24 +33,30 @@ public class AuthController {
     private final CurrentUser currentUser;
 
     private final boolean demoAutologin;
+    private final com.ledgerintegrity.platform.auth.TotpService totp;
 
     public AuthController(FirmRepository firms, AppUserRepository users,
                           PasswordEncoder passwordEncoder, CurrentUser currentUser,
+                          com.ledgerintegrity.platform.auth.TotpService totp,
                           @org.springframework.beans.factory.annotation.Value("${app.demo-autologin:false}") boolean demoAutologin) {
         this.firms = firms;
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.currentUser = currentUser;
+        this.totp = totp;
         this.demoAutologin = demoAutologin;
     }
 
     public record RegisterFirmRequest(@NotBlank String firmName, @NotBlank String displayName,
                                       @NotBlank String email, @NotBlank String password) {}
 
-    public record LoginRequest(@NotBlank String email, @NotBlank String password) {}
+    public record LoginRequest(@NotBlank String email, @NotBlank String password, String mfaCode) {}
+
+    /** Returned when the password is right but the account requires a TOTP code. */
+    public record MfaChallenge(boolean mfaRequired) {}
 
     public record MeDto(String email, String displayName, String role, String firmId, String firmName,
-                        boolean passwordResetRequired) {}
+                        boolean passwordResetRequired, boolean mfaEnabled) {}
 
     /** Self-serve tenant creation: a new firm plus its first (admin) user. */
     @PostMapping("/register-firm")
@@ -73,7 +79,7 @@ public class AuthController {
         users.save(user);
         establishSession(user, http);
         return new MeDto(user.getEmail(), user.getDisplayName(), user.getRole().name(),
-                firm.getId().toString(), firm.getName(), user.isPasswordResetRequired());
+                firm.getId().toString(), firm.getName(), user.isPasswordResetRequired(), user.isMfaEnabled());
     }
 
     /**
@@ -97,21 +103,29 @@ public class AuthController {
         establishSession(user, http);
         Firm firm = firms.findById(user.getFirmId()).orElseThrow();
         return new MeDto(user.getEmail(), user.getDisplayName(), user.getRole().name(),
-                firm.getId().toString(), firm.getName(), user.isPasswordResetRequired());
+                firm.getId().toString(), firm.getName(), user.isPasswordResetRequired(), user.isMfaEnabled());
     }
 
     private static final String DEMO_FIRM_NAME = "Demo Firm";
     private static final String DEMO_EMAIL = "demo@demo.firm";
 
     @PostMapping("/login")
-    public MeDto login(@RequestBody LoginRequest req, HttpServletRequest http) {
+    public Object login(@RequestBody LoginRequest req, HttpServletRequest http) {
         AppUser user = users.findByEmailIgnoreCase(req.email().trim())
                 .filter(u -> passwordEncoder.matches(req.password(), u.getPasswordHash()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password."));
+        if (user.isMfaEnabled()) {
+            if (req.mfaCode() == null || req.mfaCode().isBlank()) {
+                return new MfaChallenge(true); // password ok, no session yet - the UI asks for the code
+            }
+            if (!totp.verify(user.getTotpSecret(), req.mfaCode().trim())) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid authenticator code.");
+            }
+        }
         establishSession(user, http);
         Firm firm = firms.findById(user.getFirmId()).orElseThrow();
         return new MeDto(user.getEmail(), user.getDisplayName(), user.getRole().name(),
-                firm.getId().toString(), firm.getName(), user.isPasswordResetRequired());
+                firm.getId().toString(), firm.getName(), user.isPasswordResetRequired(), user.isMfaEnabled());
     }
 
     @GetMapping("/me")
@@ -119,7 +133,7 @@ public class AuthController {
         AppUser user = currentUser.require();
         Firm firm = firms.findById(user.getFirmId()).orElseThrow();
         return new MeDto(user.getEmail(), user.getDisplayName(), user.getRole().name(),
-                firm.getId().toString(), firm.getName(), user.isPasswordResetRequired());
+                firm.getId().toString(), firm.getName(), user.isPasswordResetRequired(), user.isMfaEnabled());
     }
 
     @PostMapping("/logout")
@@ -149,6 +163,63 @@ public class AuthController {
         user.setPasswordResetRequired(false);
         users.save(user);
         return Map.of("status", "password changed");
+    }
+
+    // ---------- MFA (SEC-001 / AC-15) ----------
+
+    public record MfaSetupResponse(String secret, String otpauthUri) {}
+
+    public record MfaCodeRequest(@NotBlank String code) {}
+
+    /** Step 1: generate a secret. Not active until /mfa/enable verifies a code. */
+    @PostMapping("/mfa/setup")
+    @Transactional
+    public MfaSetupResponse mfaSetup() {
+        AppUser user = currentUser.require();
+        String secret = totp.generateSecret();
+        user.setTotpSecret(secret);
+        user.setMfaEnabled(false);
+        users.save(user);
+        return new MfaSetupResponse(secret, totp.uri(secret, user.getEmail()));
+    }
+
+    /** Step 2: prove the authenticator works, then enforce it on every login. */
+    @PostMapping("/mfa/enable")
+    @Transactional
+    public MeDto mfaEnable(@RequestBody MfaCodeRequest req) {
+        AppUser user = currentUser.require();
+        if (user.getTotpSecret() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Run /mfa/setup first.");
+        }
+        if (!totp.verify(user.getTotpSecret(), req.code().trim())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "That code does not match - check the authenticator app and try again.");
+        }
+        user.setMfaEnabled(true);
+        users.save(user);
+        return me();
+    }
+
+    /** Disabling requires a current code - a stolen session alone cannot remove MFA. */
+    @PostMapping("/mfa/disable")
+    @Transactional
+    public MeDto mfaDisable(@RequestBody MfaCodeRequest req) {
+        AppUser user = currentUser.require();
+        if (!user.isMfaEnabled() || !totp.verify(user.getTotpSecret(), req.code().trim())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid current code is required.");
+        }
+        user.setMfaEnabled(false);
+        user.setTotpSecret(null);
+        users.save(user);
+        return me();
+    }
+
+    /** SPA CSRF flow: authenticated clients fetch the token and echo it as X-XSRF-TOKEN. */
+    @GetMapping("/csrf")
+    public Map<String, String> csrf(HttpServletRequest http) {
+        var token = (org.springframework.security.web.csrf.CsrfToken) http.getAttribute(
+                org.springframework.security.web.csrf.CsrfToken.class.getName());
+        return Map.of("headerName", token.getHeaderName(), "token", token.getToken());
     }
 
     private static void establishSession(AppUser user, HttpServletRequest http) {

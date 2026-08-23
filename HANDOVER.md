@@ -68,8 +68,10 @@ First use: **Register firm** on the login screen (creates the firm + its first A
 
 - **Dev DB** is H2 in PostgreSQL mode at `backend/data/platform.*` (`ddl-auto: update`). Tests use throwaway in-memory DBs. For production, move to real PostgreSQL — the schema is written to be compatible.
 - **Evolving enums** must be declared `@Column(columnDefinition = "varchar(N)")` — H2 creates native enum columns otherwise, which reject values added later. This bit three times (roles, GST categories, bank match types); the pattern is applied everywhere it matters now.
-- **CSRF is disabled** (documented MVP trade-off — JSON session auth). Revisit with the deployment hardening pass.
-- **Sessions are in-memory** — a backend restart signs everyone out.
+- **CSRF is ON** (session-stored token; the SPA fetches GET /api/auth/csrf after sign-in and sends X-XSRF-TOKEN on every mutating call; login/register/demo are exempt entry points). Any script driving the API must do the same handshake.
+- **Sessions persist in the database** (spring-session JDBC) — restarts and redeploys no longer sign anyone out.
+- **MFA (TOTP)** is self-service under Account Security; once enabled, login requires password + 6-digit code.
+- **Evidence documents encrypt at rest** (AES-256-GCM) when APP_ENCRYPTION_KEY is set — generate with openssl rand -base64 32; rows are flagged so pre-key uploads stay readable.
 - Money is **integer paise** (`long`) everywhere; never floats. Dates are `LocalDate`/`LocalDateTime`, ISO on the wire.
 - Every rule run stores its **pack version, parameters, and population filter** as JSON — that is what makes results reproducible; keep it that way when adding rules (bump the pack version).
 

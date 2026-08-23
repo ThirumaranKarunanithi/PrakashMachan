@@ -32,13 +32,16 @@ public class EvidenceService {
     private final NotificationService notificationService;
 
     private final com.ledgerintegrity.platform.rules.ExceptionDecisionService decisions;
+    private final com.ledgerintegrity.platform.common.CryptoService crypto;
 
     public EvidenceService(EvidenceRequestRepository requests,
                            EvidenceDocumentRepository documents,
                            ExceptionCaseRepository exceptions,
                            EngagementRepository engagements,
                            NotificationService notificationService,
-                           com.ledgerintegrity.platform.rules.ExceptionDecisionService decisions) {
+                           com.ledgerintegrity.platform.rules.ExceptionDecisionService decisions,
+                           com.ledgerintegrity.platform.common.CryptoService crypto) {
+        this.crypto = crypto;
         this.requests = requests;
         this.documents = documents;
         this.exceptions = exceptions;
@@ -79,10 +82,14 @@ public class EvidenceService {
         requests.save(request);
 
         int version = documents.findByRequestIdOrderByVersionAsc(requestId).size() + 1;
+        // SEC-004: sha256 is of the PLAINTEXT (integrity of what the client sent);
+        // the stored bytes are ciphertext when the encryption key is configured
+        byte[] stored = crypto.enabled() ? crypto.encrypt(content) : content;
         EvidenceDocument doc = new EvidenceDocument(UUID.randomUUID(), requestId, version,
                 fileName, contentType == null ? "application/octet-stream" : contentType,
-                content, Checksums.sha256Hex(content),
+                stored, Checksums.sha256Hex(content),
                 uploadedBy == null || uploadedBy.isBlank() ? "client" : uploadedBy.trim(), Instant.now());
+        doc.setEncrypted(crypto.enabled());
         documents.save(doc);
         engagements.findById(request.getEngagementId()).ifPresent(e ->
                 notificationService.notifyOnce(e.getFirmId(), "EVIDENCE_RESPONSE",
@@ -99,6 +106,11 @@ public class EvidenceService {
         request.decide(decision, note, decidedBy, Instant.now());
         requests.save(request);
         return request;
+    }
+
+    /** The ONLY way to read document bytes - decrypts when the row is flagged. */
+    public byte[] contentOf(EvidenceDocument doc) {
+        return doc.isEncrypted() ? crypto.decrypt(doc.getContent()) : doc.getContent();
     }
 
     public List<EvidenceDocument> documentsOf(UUID requestId) {
