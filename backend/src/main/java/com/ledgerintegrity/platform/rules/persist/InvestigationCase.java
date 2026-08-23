@@ -81,6 +81,10 @@ public class InvestigationCase {
         this.severity = Finding.Severity.LOW;
     }
 
+    /** Per-family score breakdown JSON (guide §9: every score shows its family facts). */
+    @jakarta.persistence.Column(columnDefinition = "text")
+    private String familyScoresJson;
+
     public void updateAggregates(String title, Finding.Severity severity, int priorityScore,
                                  long exposurePaise, String voucherIds, Instant now) {
         this.title = title;
@@ -90,6 +94,9 @@ public class InvestigationCase {
         this.voucherIds = voucherIds;
         this.updatedAt = now;
     }
+
+    public String getFamilyScoresJson() { return familyScoresJson; }
+    public void setFamilyScoresJson(String json) { this.familyScoresJson = json; }
 
     public UUID getId() { return id; }
     public UUID getEngagementId() { return engagementId; }

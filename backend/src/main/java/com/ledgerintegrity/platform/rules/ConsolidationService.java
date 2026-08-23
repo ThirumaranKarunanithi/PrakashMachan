@@ -40,13 +40,31 @@ public class ConsolidationService {
     private final InvestigationCaseRepository cases;
     private final EngagementRepository engagements;
     private final RiskWeightConfigRepository weightConfigs;
+    private final com.ledgerintegrity.platform.evidence.persist.EvidenceRequestRepository evidenceRequests;
 
     public ConsolidationService(ExceptionCaseRepository exceptions, InvestigationCaseRepository cases,
-                                EngagementRepository engagements, RiskWeightConfigRepository weightConfigs) {
+                                EngagementRepository engagements, RiskWeightConfigRepository weightConfigs,
+                                com.ledgerintegrity.platform.evidence.persist.EvidenceRequestRepository evidenceRequests) {
         this.exceptions = exceptions;
         this.cases = cases;
         this.engagements = engagements;
         this.weightConfigs = weightConfigs;
+        this.evidenceRequests = evidenceRequests;
+    }
+
+    /** Compact, ordered breakdown: {"family": {"score": n, "cap": c}, ...} */
+    private static String familyJson(Map<RiskFamily, Integer> byFamily, Map<RiskFamily, Integer> caps) {
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (RiskFamily f : RiskFamily.values()) {
+            Integer v = byFamily.get(f);
+            if (v == null) continue;
+            if (!first) sb.append(",");
+            first = false;
+            sb.append("\"").append(f.name()).append("\":{\"score\":").append(v)
+              .append(",\"cap\":").append(caps.get(f)).append("}");
+        }
+        return sb.append("}").toString();
     }
 
     /** RSK-003: severity weights come from the firm methodology owner; defaults are illustrative. */
@@ -61,9 +79,54 @@ public class ConsolidationService {
                         Finding.Severity.LOW, RiskWeightConfig.DEFAULT_LOW));
     }
 
+    /** Family caps from the firm methodology config; guide §9.1 defaults otherwise. */
+    private Map<RiskFamily, Integer> capsFor(UUID engagementId) {
+        return engagements.findById(engagementId)
+                .flatMap(e -> weightConfigs.findTopByFirmIdOrderByVersionDesc(e.getFirmId()))
+                .map(c -> Map.of(
+                        RiskFamily.RECONCILIATION, c.getReconciliationCap(),
+                        RiskFamily.DETERMINISTIC, c.getDeterministicCap(),
+                        RiskFamily.BEHAVIOUR_ACCESS, c.getBehaviourCap(),
+                        RiskFamily.STATISTICAL, c.getStatisticalCap(),
+                        RiskFamily.RELATIONSHIP, c.getRelationshipCap(),
+                        RiskFamily.EVIDENCE, c.getEvidenceCap()))
+                .orElse(Map.of(
+                        RiskFamily.RECONCILIATION, RiskWeightConfig.DEFAULT_RECONCILIATION_CAP,
+                        RiskFamily.DETERMINISTIC, RiskWeightConfig.DEFAULT_DETERMINISTIC_CAP,
+                        RiskFamily.BEHAVIOUR_ACCESS, RiskWeightConfig.DEFAULT_BEHAVIOUR_CAP,
+                        RiskFamily.STATISTICAL, RiskWeightConfig.DEFAULT_STATISTICAL_CAP,
+                        RiskFamily.RELATIONSHIP, RiskWeightConfig.DEFAULT_RELATIONSHIP_CAP,
+                        RiskFamily.EVIDENCE, RiskWeightConfig.DEFAULT_EVIDENCE_CAP));
+    }
+
+    /**
+     * Review Priority Score v2 (guide §9): raw severity points accumulate PER FAMILY,
+     * each family is capped, and the total is the sum of the capped families (0-100
+     * when the caps follow the 25/25/15/10/15/10 structure). Evidence risk counts
+     * overdue or rejected evidence requests attached to the case's members.
+     * Returns the per-family breakdown; the total is the values' sum.
+     */
+    static Map<RiskFamily, Integer> familyScores(List<ExceptionCase> members,
+                                          Map<Finding.Severity, Integer> severityWeight,
+                                          Map<RiskFamily, Integer> caps,
+                                          int overdueOrRejectedEvidence) {
+        Map<RiskFamily, Integer> raw = new java.util.EnumMap<>(RiskFamily.class);
+        for (ExceptionCase m : members) {
+            raw.merge(RiskFamily.of(m.getRuleId()), severityWeight.get(m.getSeverity()), Integer::sum);
+        }
+        raw.merge(RiskFamily.EVIDENCE, overdueOrRejectedEvidence * 5, Integer::sum);
+        Map<RiskFamily, Integer> capped = new java.util.EnumMap<>(RiskFamily.class);
+        for (Map.Entry<RiskFamily, Integer> e : raw.entrySet()) {
+            if (e.getValue() == 0) continue;
+            capped.put(e.getKey(), Math.min(e.getValue(), caps.get(e.getKey())));
+        }
+        return capped;
+    }
+
     @Transactional
     public List<InvestigationCase> consolidate(UUID engagementId) {
         Map<Finding.Severity, Integer> severityWeight = weightsFor(engagementId);
+        Map<RiskFamily, Integer> familyCaps = capsFor(engagementId);
         List<ExceptionCase> all = exceptions.findByEngagementIdOrderBySeverityAscExposurePaiseDesc(engagementId);
         if (all.isEmpty()) return List.of();
 
@@ -116,7 +179,15 @@ public class ConsolidationService {
                     .map(ExceptionCase::getSeverity)
                     .min(Comparator.comparingInt(Enum::ordinal)) // HIGH has the lowest ordinal
                     .orElse(Finding.Severity.LOW);
-            int score = members.stream().mapToInt(m -> severityWeight.get(m.getSeverity())).sum();
+            int evidenceSignals = (int) evidenceRequests
+                    .findByEngagementIdOrderByCreatedAtDesc(engagementId).stream()
+                    .filter(r -> members.stream().anyMatch(m -> m.getId().equals(r.getExceptionId())))
+                    .filter(r -> r.isOverdue(java.time.LocalDate.now())
+                            || r.getStatus() == com.ledgerintegrity.platform.evidence.persist.EvidenceRequest.Status.REJECTED)
+                    .count();
+            Map<RiskFamily, Integer> byFamily =
+                    familyScores(members, severityWeight, familyCaps, evidenceSignals);
+            int score = byFamily.values().stream().mapToInt(Integer::intValue).sum();
             long exposure = members.stream().mapToLong(ExceptionCase::getExposurePaise).max().orElse(0);
             Set<String> vouchers = new TreeSet<>();
             members.forEach(m -> vouchers.addAll(List.of(m.getVoucherIds().split(" "))));
@@ -124,6 +195,7 @@ public class ConsolidationService {
                     + (members.size() > 1 ? " (+" + (members.size() - 1) + " related signal(s))" : "");
             survivor.updateAggregates(truncate(title, 300), severity, score, exposure,
                     truncate(String.join(" ", vouchers), 1000), now);
+            survivor.setFamilyScoresJson(familyJson(byFamily, familyCaps));
 
             cases.save(survivor);
             result.add(survivor);

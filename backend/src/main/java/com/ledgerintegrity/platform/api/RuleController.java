@@ -93,7 +93,7 @@ public class RuleController {
     public record CaseDto(String id, int caseNo, String title, String severity, int priorityScore,
                           int effectivePriority, Integer overriddenPriority, String overrideReason, String overriddenBy,
                           long exposurePaise, String voucherIds, int exceptionCount, int openCount,
-                          List<ExceptionDto> exceptions) {
+                          String familyScoresJson, List<ExceptionDto> exceptions) {
         static CaseDto from(InvestigationCase c, List<ExceptionCase> members) {
             int open = (int) members.stream().filter(m -> switch (m.getStatus()) {
                 case NEW, UNDER_REVIEW, INFO_REQUIRED -> true;
@@ -103,7 +103,8 @@ public class RuleController {
                     c.getPriorityScore(), c.effectivePriority(), c.getOverriddenPriority(),
                     c.getOverrideReason(), c.getOverriddenBy(),
                     c.getExposurePaise(), c.getVoucherIds(),
-                    members.size(), open, members.stream().map(ExceptionDto::from).toList());
+                    members.size(), open, c.getFamilyScoresJson(),
+                    members.stream().map(ExceptionDto::from).toList());
         }
     }
 

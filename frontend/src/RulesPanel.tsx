@@ -41,6 +41,7 @@ interface InvestigationCase {
   voucherIds: string;
   exceptionCount: number;
   openCount: number;
+  familyScoresJson: string | null;
   exceptions: ExceptionCase[];
 }
 
@@ -181,6 +182,25 @@ export default function RulesPanel({ engagementId }: { engagementId: string }) {
   );
 }
 
+const FAMILY_SHORT: Record<string, string> = {
+  RECONCILIATION: 'Recon', DETERMINISTIC: 'Rules', BEHAVIOUR_ACCESS: 'Behaviour',
+  STATISTICAL: 'Statistical', RELATIONSHIP: 'Relationship', EVIDENCE: 'Evidence',
+};
+
+function familyChips(json: string | null) {
+  if (!json) return null;
+  try {
+    const parsed = JSON.parse(json) as Record<string, { score: number; cap: number }>;
+    return Object.entries(parsed).map(([f, v]) => (
+      <span key={f} className="sev sev-low" title={`${f}: ${v.score} of a maximum ${v.cap}`}>
+        {FAMILY_SHORT[f] ?? f} {v.score}/{v.cap}
+      </span>
+    ));
+  } catch {
+    return null;
+  }
+}
+
 function CaseView({ c, onSaved }: { c: InvestigationCase; onSaved: () => Promise<void> }) {
   const [open, setOpen] = useState(c.severity === 'HIGH');
   const [showOverride, setShowOverride] = useState(false);
@@ -219,6 +239,7 @@ function CaseView({ c, onSaved }: { c: InvestigationCase; onSaved: () => Promise
         <span className={`sev sev-${c.severity.toLowerCase()}`}>{c.severity}</span>
         <span className="case-title">{c.title}</span>
         <span className="case-meta">
+          {familyChips(c.familyScoresJson)}
           priority {c.effectivePriority}{c.overriddenPriority != null ? ` (score ${c.priorityScore}, overridden by ${c.overriddenBy})` : ''} ·
           ₹ {inr(c.exposurePaise)} · {c.openCount}/{c.exceptionCount} open {open ? '▾' : '▸'}
         </span>
@@ -326,15 +347,23 @@ function MethodologyBlock() {
   const [high, setHigh] = useState('10');
   const [medium, setMedium] = useState('5');
   const [low, setLow] = useState('2');
+  const [caps, setCaps] = useState<Record<string, string>>({
+    reconciliationCap: '25', deterministicCap: '25', behaviourCap: '15',
+    statisticalCap: '10', relationshipCap: '15', evidenceCap: '10',
+  });
   const [headerTitle, setHeaderTitle] = useState('Engagement Workpaper');
   const [footerNote, setFooterNote] = useState('');
-  const [updatedBy, setUpdatedBy] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/methodology/risk-weights').then((r) => r.json()).then((w) => {
       setHigh(String(w.highWeight)); setMedium(String(w.mediumWeight)); setLow(String(w.lowWeight));
+      setCaps({
+        reconciliationCap: String(w.reconciliationCap), deterministicCap: String(w.deterministicCap),
+        behaviourCap: String(w.behaviourCap), statisticalCap: String(w.statisticalCap),
+        relationshipCap: String(w.relationshipCap), evidenceCap: String(w.evidenceCap),
+      });
     }).catch(() => {});
     fetch('/api/methodology/workpaper-template').then((r) => r.json()).then((t) => {
       setHeaderTitle(t.headerTitle); setFooterNote(t.footerNote ?? '');
@@ -346,12 +375,17 @@ function MethodologyBlock() {
     try {
       const r1 = await fetch('/api/methodology/risk-weights', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ highWeight: Number(high), mediumWeight: Number(medium), lowWeight: Number(low), updatedBy }),
+        body: JSON.stringify({
+          highWeight: Number(high), mediumWeight: Number(medium), lowWeight: Number(low),
+          reconciliationCap: Number(caps.reconciliationCap), deterministicCap: Number(caps.deterministicCap),
+          behaviourCap: Number(caps.behaviourCap), statisticalCap: Number(caps.statisticalCap),
+          relationshipCap: Number(caps.relationshipCap), evidenceCap: Number(caps.evidenceCap),
+        }),
       });
       if (!r1.ok) throw new Error((await r1.json()).error);
       const r2 = await fetch('/api/methodology/workpaper-template', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ headerTitle, footerNote: footerNote || null, updatedBy }),
+        body: JSON.stringify({ headerTitle, footerNote: footerNote || null }),
       });
       if (!r2.ok) throw new Error((await r2.json()).error);
       setMessage('Saved as a new version. Scores update on the next rule run; workpapers on the next generation.');
@@ -367,11 +401,18 @@ function MethodologyBlock() {
         <label>MEDIUM <input type="number" min={0} step={1} style={{ width: 60 }} value={medium} onChange={(e) => setMedium(e.target.value)} /></label>
         <label>LOW <input type="number" min={0} step={1} style={{ width: 60 }} value={low} onChange={(e) => setLow(e.target.value)} /></label>
       </div>
+      <p className="sub" style={{ margin: '6px 0 2px' }}>Family caps (Review Priority Score v2 — related signals cap inside a family; caps sum to at most 100):</p>
+      <div className="btn-row">
+        {([['reconciliationCap', 'Reconciliation'], ['deterministicCap', 'Deterministic'], ['behaviourCap', 'Behaviour'],
+           ['statisticalCap', 'Statistical'], ['relationshipCap', 'Relationship'], ['evidenceCap', 'Evidence']] as const).map(([k, label]) => (
+          <label key={k}>{label} <input type="number" min={0} max={100} step={1} style={{ width: 55 }}
+            value={caps[k]} onChange={(e) => setCaps({ ...caps, [k]: e.target.value })} /></label>
+        ))}
+      </div>
       <div className="btn-row">
         <input placeholder="Workpaper header title" style={{ flex: 1, minWidth: 220 }} value={headerTitle} onChange={(e) => setHeaderTitle(e.target.value)} />
         <input placeholder="Footer note (optional)" style={{ flex: 1, minWidth: 220 }} value={footerNote} onChange={(e) => setFooterNote(e.target.value)} />
-        <input placeholder="Updated by" value={updatedBy} onChange={(e) => setUpdatedBy(e.target.value)} />
-        <button onClick={save} disabled={!updatedBy.trim()}>Save methodology</button>
+        <button onClick={save}>Save methodology</button>
       </div>
       {message && <p className="ok-text">{message}</p>}
       {error && <p className="error">{error}</p>}

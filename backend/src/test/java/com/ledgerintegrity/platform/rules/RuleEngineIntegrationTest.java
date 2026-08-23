@@ -110,7 +110,11 @@ class RuleEngineIntegrationTest {
         InvestigationCase top = consolidated.get(0);
         assertEquals("JRN-90001 JRN-90002", top.getVoucherIds());
         assertEquals(Finding.Severity.HIGH, top.getSeverity());
-        assertEquals(55, top.getPriorityScore()); // 2x HIGH(10) + 7x MEDIUM(5): JE-07 x2, MOT-01 x2, PET-04, JE-06 x2
+        // Score v2 (guide 9): family-capped. DETERMINISTIC raw 45 (JE-03 H, JE-09 H,
+        // JE-07 x2, PET-04, JE-06 x2) caps at 25; BEHAVIOUR (MOT-01 x2) adds 10 -> 35.
+        assertEquals(35, top.getPriorityScore());
+        assertTrue(top.getFamilyScoresJson().contains("\"DETERMINISTIC\":{\"score\":25,\"cap\":25}"));
+        assertTrue(top.getFamilyScoresJson().contains("\"BEHAVIOUR_ACCESS\":{\"score\":10,\"cap\":15}"));
         assertEquals(49_00_000_00L, top.getExposurePaise()); // max member, not sum
         long topMembers = all.stream().filter(x -> top.getId().equals(x.getCaseId())).count();
         assertEquals(9, topMembers); // JE-03 + JE-09 + JE-07 x2 + MOT-01 x2 + PET-04 + JE-06 x2

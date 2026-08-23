@@ -86,12 +86,15 @@ class AtrAndRiskConfigIntegrationTest {
                 profiles.find("client-a-gl").orElseThrow());
         engine.run(e.getId(), RuleParams.defaults().withPrivilegedUsers(Set.of("ADMIN-1", "MGR-1")));
         InvestigationCase top = cases.findByEngagementIdOrderByPriorityScoreDescExposurePaiseDesc(e.getId()).get(0);
-        assertEquals(55, top.getPriorityScore()); // defaults: 2x10 + 7x5
+        // Score v2: DETERMINISTIC raw 45 caps at 25, BEHAVIOUR (MOT-01 x2) adds 10
+        assertEquals(35, top.getPriorityScore());
 
         weightConfigs.save(new RiskWeightConfig(UUID.randomUUID(), firmId, 1, 20, 8, 3, "Methodology Lead", Instant.now()));
         engine.run(e.getId(), RuleParams.defaults().withPrivilegedUsers(Set.of("ADMIN-1", "MGR-1")));
         InvestigationCase rescored = cases.findById(top.getId()).orElseThrow();
-        assertEquals(2 * 20 + 7 * 8, rescored.getPriorityScore()); // 96 under the firm's weights
+        // Firm weights (H=20, M=8): DETERMINISTIC raw 80 still caps at 25; BEHAVIOUR
+        // raw 16 caps at 15 -> 40. Weights move scores only inside uncapped families.
+        assertEquals(40, rescored.getPriorityScore());
 
         // ---- RSK-004: reviewer override with recorded reason, surviving re-runs ----
         assertThrows(IllegalArgumentException.class, () ->
@@ -100,7 +103,7 @@ class AtrAndRiskConfigIntegrationTest {
                 "P. Partner", Instant.now());
         cases.save(rescored);
         assertEquals(5, rescored.effectivePriority());
-        assertEquals(96, rescored.getPriorityScore()); // rule result untouched
+        assertEquals(40, rescored.getPriorityScore()); // rule result untouched
 
         engine.run(e.getId(), RuleParams.defaults().withPrivilegedUsers(Set.of("ADMIN-1", "MGR-1")));
         InvestigationCase afterRerun = cases.findById(rescored.getId()).orElseThrow();
