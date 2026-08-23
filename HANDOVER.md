@@ -19,6 +19,8 @@ Core product principle (BRD): the platform **flags risks and prepares evidence; 
 
 ## 2 · Running it
 
+**Commercial layer:** Customers view groups a client across its engagement years; the firm price list (core + per-module, per client-year) is versioned and editable under Pricing & Billing, which computes estimated fees and a billing summary CSV. Prices are illustrative placeholders until real commercial terms are set; the platform computes fees, it does not process payments.
+
 **Module subscriptions:** Core (import, integrity engine, Benford, cases, evidence, workpapers) is always included per engagement; GST, Bank, Vendor and Audit-Trail are add-ons chosen at engagement creation and editable by ADMIN/PARTNER (PUT /api/engagements/{id}/modules). Unsubscribed module APIs return a named 403 and the UI shows an enable control.
 
 ```

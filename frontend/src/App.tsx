@@ -92,13 +92,17 @@ export default function App() {
       { key: 'vendor', label: 'Vendor & Audit Trail', ico: '⛓', lockedUnless: ['VENDOR', 'AUDIT_TRAIL'] },
       { key: 'bank', label: 'Bank Reconciliation', ico: '🏦', lockedUnless: ['BANK'] },
     ]},
+    { group: 'Customer Subscription', items: [
+      { key: 'customers', label: 'Customers', ico: '👥' },
+      { key: 'billing', label: 'Pricing & Billing', ico: '₹' },
+    ]},
     { group: 'Workflow', items: [
       { key: 'evidence', label: 'Evidence', ico: '✉' },
       { key: 'workpapers', label: 'Workpapers', ico: '✍' },
     ]},
   ];
 
-  const needsEngagement = view !== 'engagements';
+  const needsEngagement = !['engagements', 'customers', 'billing'].includes(view);
 
   return (
     <div className="shell">
@@ -150,6 +154,11 @@ export default function App() {
           </section>
         )}
 
+        {view === 'customers' && <CustomersView onOpen={(id) => {
+          const found = engagements.find((x) => x.id === id) ?? null;
+          setSelected(found); void refresh(id); setView('overview');
+        }} />}
+        {view === 'billing' && <BillingView />}
         {view === 'engagements' && (
           <EngagementPanel
             engagements={engagements}
@@ -351,6 +360,135 @@ function RuleExposureChart({ slices, onOpen }: { slices: OvSlice[]; onOpen: () =
         })}
       </svg>
     </div>
+  );
+}
+
+
+// ---------- commercial layer (Screen 2): customers, pricing, billing ----------
+
+function CustomersView({ onOpen }: { onOpen: (engagementId: string) => void }) {
+  const [customers, setCustomers] = useState<{
+    name: string; engagementYears: number; latestFy: string; latestEngagementId: string;
+    modules: string[]; estimatedFeePaise: number;
+  }[]>([]);
+
+  useEffect(() => {
+    fetch('/api/customers').then((r) => (r.ok ? r.json() : [])).then(setCustomers).catch(() => {});
+  }, []);
+
+  return (
+    <section className="card">
+      <h2>Customer subscription management</h2>
+      <p className="sub">Each customer's latest client-year, its module subscription, and the estimated fee from your price list. Core is always included.</p>
+      {customers.length === 0 ? <p className="sub">No customers yet — create an engagement first.</p> : (
+        <table>
+          <thead><tr><th>Customer</th><th>Client-years</th><th>Latest FY</th><th>Subscription</th><th className="num">Estimated fee / client-year</th><th></th></tr></thead>
+          <tbody>
+            {customers.map((c) => (
+              <tr key={c.name}>
+                <td><strong>{c.name}</strong></td>
+                <td className="num">{c.engagementYears}</td>
+                <td>{c.latestFy}</td>
+                <td>
+                  <span className="sev sev-low">Core</span>{' '}
+                  {c.modules.map((m) => <span key={m} className="sev sev-low">{m.replace('_', ' ')}</span>)}
+                  {c.modules.length === 0 && <span className="sub"> (Core only)</span>}
+                </td>
+                <td className="num">₹ {inr(c.estimatedFeePaise)}</td>
+                <td><a href="#" onClick={(e) => { e.preventDefault(); onOpen(c.latestEngagementId); }}>Open ▸</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+function BillingView() {
+  const [pricing, setPricing] = useState<Record<string, string>>({});
+  const [meta, setMeta] = useState<{ version: number; updatedBy: string } | null>(null);
+  const [billing, setBilling] = useState<{
+    lines: { client: string; financialYear: string; modules: string[]; corePaise: number; addOnsPaise: number; feePaise: number }[];
+    totalPaise: number;
+  } | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const PRICE_FIELDS: [string, string][] = [
+    ['corePaise', 'Core (always included)'], ['gstPaise', 'GST Reconciliation'],
+    ['bankPaise', 'Bank Reconciliation'], ['vendorPaise', 'Vendor & Payment Analytics'],
+    ['auditTrailPaise', 'Audit Trail & Override'],
+  ];
+
+  async function load() {
+    const p = await fetch('/api/pricing').then((r) => r.json());
+    setMeta({ version: p.version, updatedBy: p.updatedBy });
+    const next: Record<string, string> = {};
+    for (const [k] of PRICE_FIELDS) next[k] = String(Math.round(p[k] / 100));
+    setPricing(next);
+    setBilling(await fetch('/api/billing').then((r) => r.json()));
+  }
+  useEffect(() => { void load(); }, []);
+
+  async function save() {
+    setError(null); setMessage(null);
+    try {
+      const body: Record<string, number> = {};
+      for (const [k] of PRICE_FIELDS) body[k] = Number(pricing[k]) * 100;
+      const res = await fetch('/api/pricing', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error ?? `Failed (${res.status})`);
+      setMessage('Price list saved as version ' + out.version + '. Fees below reflect the new list.');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  return (
+    <>
+      <section className="card">
+        <h2>Pricing &amp; plans</h2>
+        <p className="sub">Per client-year prices (₹). These are your firm's placeholders until real commercial terms are set — versioned append-only{meta ? ` · v${meta.version} · ${meta.updatedBy}` : ''}.</p>
+        <div className="btn-row">
+          {PRICE_FIELDS.map(([k, label]) => (
+            <label key={k}>{label}
+              <input type="number" min={0} step={500} style={{ width: 110 }}
+                value={pricing[k] ?? ''} onChange={(e) => setPricing({ ...pricing, [k]: e.target.value })} />
+            </label>
+          ))}
+        </div>
+        <button onClick={save}>Save price list</button>
+        {message && <p className="ok-text">{message}</p>}
+        {error && <p className="error">{error}</p>}
+      </section>
+
+      <section className="card">
+        <h2>Billing summary</h2>
+        <p className="sub">One line per client-year at the current price list. <a href={api('/api/billing.csv')} download>Download CSV</a>. The platform computes fees; invoicing and payment stay outside it.</p>
+        {billing && (
+          <table>
+            <thead><tr><th>Client</th><th>Financial year</th><th>Modules</th><th className="num">Core</th><th className="num">Add-ons</th><th className="num">Fee</th></tr></thead>
+            <tbody>
+              {billing.lines.map((l, i) => (
+                <tr key={i}>
+                  <td>{l.client}</td><td>{l.financialYear}</td>
+                  <td>{l.modules.length ? l.modules.join(', ') : 'Core only'}</td>
+                  <td className="num">₹ {inr(l.corePaise)}</td>
+                  <td className="num">₹ {inr(l.addOnsPaise)}</td>
+                  <td className="num"><strong>₹ {inr(l.feePaise)}</strong></td>
+                </tr>
+              ))}
+              <tr><td colSpan={5}><strong>Total (all client-years)</strong></td>
+                <td className="num"><strong>₹ {inr(billing.totalPaise)}</strong></td></tr>
+            </tbody>
+          </table>
+        )}
+      </section>
+    </>
   );
 }
 
