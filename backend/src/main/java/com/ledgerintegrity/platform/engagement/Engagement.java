@@ -43,6 +43,15 @@ public class Engagement {
     @Column(nullable = false)
     private String status = "ACTIVE";
 
+    /**
+     * Comma-separated optional modules this client-year subscribes to (BRD subscription
+     * model: Core is always included; GST / BANK / VENDOR / AUDIT_TRAIL are add-ons).
+     * Explicit default so ddl-auto can add the column to already-populated tables,
+     * keeping every existing engagement on the full suite.
+     */
+    @Column(nullable = false, columnDefinition = "varchar(100) default 'GST,BANK,VENDOR,AUDIT_TRAIL' not null")
+    private String subscribedModules = "GST,BANK,VENDOR,AUDIT_TRAIL";
+
     protected Engagement() {} // JPA
 
     public Engagement(UUID id, UUID firmId, String clientName, LocalDate fyStart, LocalDate fyEnd, LocalDate closeDate, Instant createdAt) {
@@ -53,6 +62,16 @@ public class Engagement {
         this.fyEnd = fyEnd;
         this.closeDate = closeDate;
         this.createdAt = createdAt;
+    }
+
+    public java.util.Set<String> getSubscribedModules() {
+        java.util.Set<String> out = new java.util.TreeSet<>();
+        for (String m : subscribedModules.split(",")) if (!m.isBlank()) out.add(m.trim());
+        return out;
+    }
+
+    public void setSubscribedModules(java.util.Set<String> modules) {
+        this.subscribedModules = String.join(",", new java.util.TreeSet<>(modules));
     }
 
     public UUID getId() { return id; }

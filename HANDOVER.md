@@ -19,6 +19,8 @@ Core product principle (BRD): the platform **flags risks and prepares evidence; 
 
 ## 2 · Running it
 
+**Module subscriptions:** Core (import, integrity engine, Benford, cases, evidence, workpapers) is always included per engagement; GST, Bank, Vendor and Audit-Trail are add-ons chosen at engagement creation and editable by ADMIN/PARTNER (PUT /api/engagements/{id}/modules). Unsubscribed module APIs return a named 403 and the UI shows an enable control.
+
 ```
 cd backend  && mvn spring-boot:run        # API on :8080  (H2 file DB in backend/data/)
 cd frontend && npm install && npm run dev  # UI on :5173, Vite proxies /api -> :8080

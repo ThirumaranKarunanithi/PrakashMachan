@@ -75,14 +75,17 @@ public class EngagementController {
             @NotBlank String clientName,
             @NotNull LocalDate fyStart,
             @NotNull LocalDate fyEnd,
-            @NotNull LocalDate closeDate) {}
+            @NotNull LocalDate closeDate,
+            /** Optional add-on modules; null = full suite (Core is always included). */
+            List<String> modules) {}
 
     public record EngagementDto(String id, String clientName, LocalDate fyStart, LocalDate fyEnd,
                                 LocalDate closeDate, String status, Instant createdAt,
-                                long populationCount, int importCount) {
+                                long populationCount, int importCount, List<String> modules) {
         static EngagementDto from(Engagement e, long populationCount, int importCount) {
             return new EngagementDto(e.getId().toString(), e.getClientName(), e.getFyStart(), e.getFyEnd(),
-                    e.getCloseDate(), e.getStatus(), e.getCreatedAt(), populationCount, importCount);
+                    e.getCloseDate(), e.getStatus(), e.getCreatedAt(), populationCount, importCount,
+                    List.copyOf(e.getSubscribedModules()));
         }
     }
 
@@ -104,8 +107,40 @@ public class EngagementController {
         }
         Engagement e = new Engagement(UUID.randomUUID(), currentUser.firmId(), req.clientName().trim(),
                 req.fyStart(), req.fyEnd(), req.closeDate(), Instant.now());
+        if (req.modules() != null) e.setSubscribedModules(validModules(req.modules()));
         engagements.save(e);
         return EngagementDto.from(e, 0, 0);
+    }
+
+    public record ModulesRequest(@NotNull List<String> modules) {}
+
+    /** Subscription change (firm admin/partner): Core stays; add-ons toggle per client-year. */
+    @PutMapping("/engagements/{id}/modules")
+    public EngagementDto updateModules(@PathVariable UUID id, @Valid @RequestBody ModulesRequest req) {
+        var role = currentUser.require().getRole();
+        if (role != com.ledgerintegrity.platform.auth.persist.AppUser.Role.ADMIN
+                && role != com.ledgerintegrity.platform.auth.persist.AppUser.Role.PARTNER) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Only an ADMIN or PARTNER can change the module subscription.");
+        }
+        Engagement e = guard.engagement(id);
+        e.setSubscribedModules(validModules(req.modules()));
+        engagements.save(e);
+        return EngagementDto.from(e, entries.countByEngagementId(e.getId()), 0);
+    }
+
+    private static java.util.Set<String> validModules(List<String> requested) {
+        java.util.Set<String> out = new java.util.TreeSet<>();
+        for (String m : requested) {
+            if (m == null || m.isBlank()) continue;
+            try {
+                out.add(com.ledgerintegrity.platform.engagement.Module.valueOf(m.trim().toUpperCase()).name());
+            } catch (IllegalArgumentException ex) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown module: " + m
+                        + ". Valid modules: GST, BANK, VENDOR, AUDIT_TRAIL.");
+            }
+        }
+        return out;
     }
 
     @GetMapping("/engagements")

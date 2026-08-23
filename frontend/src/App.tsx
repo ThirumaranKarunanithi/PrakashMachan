@@ -110,14 +110,71 @@ export default function App() {
           />
           <RulesPanel key={`rules-${selected.id}-${casesVersion}`} engagementId={selected.id} />
           <BenfordPanel engagementId={selected.id} onChanged={() => setCasesVersion((v) => v + 1)} />
-          <GstPanel engagementId={selected.id} onReconciled={() => setCasesVersion((v) => v + 1)} />
-          <VendorPanel engagementId={selected.id} />
-          <BankPanel engagementId={selected.id} onReconciled={() => setCasesVersion((v) => v + 1)} />
+          {has(selected, 'GST')
+            ? <GstPanel engagementId={selected.id} onReconciled={() => setCasesVersion((v) => v + 1)} />
+            : <LockedModule name="GST Reconciliation" module="GST" engagement={selected} onChanged={() => void refresh(selected.id)} />}
+          {has(selected, 'VENDOR') || has(selected, 'AUDIT_TRAIL')
+            ? <VendorPanel engagementId={selected.id} />
+            : <LockedModule name="Vendor & Payment Analytics + Audit Trail" module="VENDOR,AUDIT_TRAIL" engagement={selected} onChanged={() => void refresh(selected.id)} />}
+          {has(selected, 'BANK')
+            ? <BankPanel engagementId={selected.id} onReconciled={() => setCasesVersion((v) => v + 1)} />
+            : <LockedModule name="Bank Reconciliation & Cash Intelligence" module="BANK" engagement={selected} onChanged={() => void refresh(selected.id)} />}
           <EvidencePanel engagementId={selected.id} onChanged={() => setCasesVersion((v) => v + 1)} />
           <WorkpaperPanel engagementId={selected.id} />
         </>
       )}
     </main>
+  );
+}
+
+const ALL_MODULES = [
+  ['GST', 'GST Reconciliation'],
+  ['BANK', 'Bank Reconciliation'],
+  ['VENDOR', 'Vendor & Payment Analytics'],
+  ['AUDIT_TRAIL', 'Audit Trail & Override'],
+] as const;
+
+function has(e: Engagement, module: string) {
+  return (e.modules ?? []).includes(module);
+}
+
+/** Subscription gate UI: what the module adds, and a one-click enable (ADMIN/PARTNER). */
+function LockedModule({ name, module, engagement, onChanged }: {
+  name: string; module: string; engagement: Engagement; onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function enable() {
+    setBusy(true);
+    setError(null);
+    try {
+      const next = [...new Set([...(engagement.modules ?? []), ...module.split(',')])];
+      const res = await fetch(`/api/engagements/${engagement.id}/modules`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modules: next }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? `Failed (${res.status})`);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card" style={{ opacity: 0.75 }}>
+      <h2>🔒 {name}</h2>
+      <p className="sub">
+        This engagement's subscription does not include the {name} module.
+        The core integrity engine keeps running; enabling the module adds its
+        imports, reconciliations and signals to the same consolidated cases.
+      </p>
+      <button onClick={enable} disabled={busy}>{busy ? 'Enabling…' : 'Enable module'}</button>
+      {error && <p className="error">{error}</p>}
+    </section>
   );
 }
 
@@ -154,6 +211,7 @@ function EngagementPanel(props: {
   const [fyStart, setFyStart] = useState('2024-04-01');
   const [fyEnd, setFyEnd] = useState('2025-03-31');
   const [closeDate, setCloseDate] = useState('2025-03-31');
+  const [modules, setModules] = useState<string[]>(ALL_MODULES.map(([k]) => k));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -164,7 +222,7 @@ function EngagementPanel(props: {
       const res = await fetch('/api/engagements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientName, fyStart, fyEnd, closeDate }),
+        body: JSON.stringify({ clientName, fyStart, fyEnd, closeDate, modules }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `Create failed (${res.status})`);
@@ -242,6 +300,16 @@ function EngagementPanel(props: {
           <label>Close date
             <input type="date" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} />
           </label>
+        </div>
+        <p className="sub" style={{ margin: '8px 0 2px' }}>Subscription — Core (import, integrity engine, cases, evidence, workpapers) is always included; add-on modules:</p>
+        <div className="btn-row">
+          {ALL_MODULES.map(([key, label]) => (
+            <label key={key} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <input type="checkbox" checked={modules.includes(key)}
+                onChange={(e) => setModules(e.target.checked ? [...modules, key] : modules.filter((m) => m !== key))} />
+              {label}
+            </label>
+          ))}
         </div>
         <button onClick={create} disabled={busy || !clientName.trim()}>
           {busy ? 'Creating…' : 'Create engagement'}

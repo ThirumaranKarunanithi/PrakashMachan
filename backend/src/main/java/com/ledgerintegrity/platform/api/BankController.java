@@ -60,7 +60,7 @@ public class BankController {
 
     @GetMapping("/status")
     public Map<String, Object> status(@PathVariable UUID id) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.BANK);
         return Map.of(
                 "statementLines", statements.countByEngagementId(id),
                 "ledgerLines", ledger.countByEngagementId(id));
@@ -69,20 +69,20 @@ public class BankController {
     @PostMapping(value = "/statement", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public BankImportService.ImportOutcome importStatement(@PathVariable UUID id,
                                                            @RequestParam("file") MultipartFile file) throws IOException {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.BANK);
         return outcomeOr422(importService.importStatement(id, name(file, "bank_statement.csv"), file.getBytes()));
     }
 
     @PostMapping(value = "/ledger", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public BankImportService.ImportOutcome importLedger(@PathVariable UUID id,
                                                         @RequestParam("file") MultipartFile file) throws IOException {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.BANK);
         return outcomeOr422(importService.importLedger(id, name(file, "bank_ledger.csv"), file.getBytes()));
     }
 
     @PostMapping("/reconcile")
     public Map<String, Object> reconcile(@PathVariable UUID id) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.BANK);
         try {
             var r = reconciliation.reconcile(id);
             Map<String, Object> out = new LinkedHashMap<>();
@@ -100,7 +100,7 @@ public class BankController {
 
     @GetMapping("/items")
     public List<MatchDto> items(@PathVariable UUID id, @RequestParam String type) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.BANK);
         BankMatchResult.MatchType matchType;
         try {
             matchType = BankMatchResult.MatchType.valueOf(type.toUpperCase());
@@ -119,7 +119,7 @@ public class BankController {
     /** BKR-003: reviewer approves a pairing manually — logged and applied on the next reconcile. */
     @PostMapping("/manual-links")
     public ManualLinkDto createManualLink(@PathVariable UUID id, @RequestBody ManualLinkRequest req) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.BANK);
         try {
             var m = reconciliation.manualLink(id, req.statementReference(), req.voucherId(),
                     req.reason(), currentUser.actorLabel());
@@ -134,7 +134,7 @@ public class BankController {
 
     @GetMapping("/manual-links")
     public List<ManualLinkDto> listManualLinks(@PathVariable UUID id) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.BANK);
         return reconciliation.manualLinks(id).stream()
                 .map(m -> new ManualLinkDto(m.getStatementReference(), m.getVoucherId(), m.getReason(),
                         m.getDecidedBy(), m.getDecidedAt()))

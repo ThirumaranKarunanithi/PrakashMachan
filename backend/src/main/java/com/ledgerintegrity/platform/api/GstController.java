@@ -74,7 +74,7 @@ public class GstController {
 
     @GetMapping("/status")
     public Map<String, Object> status(@PathVariable UUID id) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         return Map.of(
                 "purchaseInvoices", purchases.countByEngagementId(id),
                 "gstr2bInvoices", g2b.countByEngagementId(id),
@@ -86,20 +86,20 @@ public class GstController {
     @PostMapping(value = "/purchases", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public GstImportService.ImportOutcome importPurchases(@PathVariable UUID id,
                                                           @RequestParam("file") MultipartFile file) throws IOException {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         return outcomeOr422(importService.importPurchaseRegister(id, name(file, "purchase_register.csv"), file.getBytes()));
     }
 
     @PostMapping(value = "/gstr2b", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public GstImportService.ImportOutcome importGstr2b(@PathVariable UUID id,
                                                        @RequestParam("file") MultipartFile file) throws IOException {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         return outcomeOr422(importService.importGstr2b(id, name(file, "gstr2b.csv"), file.getBytes()));
     }
 
     @PostMapping("/reconcile")
     public Map<String, Object> reconcile(@PathVariable UUID id) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         var r = reconciliation.reconcile(id);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("reconciliationId", r.reconciliationId().toString());
@@ -112,7 +112,7 @@ public class GstController {
 
     @GetMapping("/matches")
     public List<MatchDto> listMatches(@PathVariable UUID id, @RequestParam(required = false) String category) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         List<GstMatchResult> rows;
         if (category == null || category.isBlank()) {
             rows = matches.findBySide(id, com.ledgerintegrity.platform.gst.persist.GstMatchResult.Side.PURCHASE, true);
@@ -131,27 +131,27 @@ public class GstController {
     @PostMapping(value = "/sales", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public GstImportService.ImportOutcome importSales(@PathVariable UUID id,
                                                       @RequestParam("file") MultipartFile file) throws IOException {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         return outcomeOr422(importService.importSalesRegister(id, name(file, "sales_register.csv"), file.getBytes()));
     }
 
     @PostMapping(value = "/gstr1", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public GstImportService.ImportOutcome importGstr1(@PathVariable UUID id,
                                                       @RequestParam("file") MultipartFile file) throws IOException {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         return outcomeOr422(importService.importGstr1(id, name(file, "gstr1.csv"), file.getBytes()));
     }
 
     @PostMapping(value = "/gstr3b-summary", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public GstImportService.ImportOutcome importGstr3b(@PathVariable UUID id,
                                                        @RequestParam("file") MultipartFile file) throws IOException {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         return outcomeOr422(importService.importGstr3b(id, name(file, "gstr3b.csv"), file.getBytes()));
     }
 
     @PostMapping("/reconcile-sales")
     public Map<String, Object> reconcileSales(@PathVariable UUID id) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         var r = reconciliation.reconcileSales(id);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("reconciliationId", r.reconciliationId().toString());
@@ -164,13 +164,13 @@ public class GstController {
 
     @PostMapping("/reconcile-3b")
     public GstReconciliationService.Gstr3bResult reconcile3b(@PathVariable UUID id) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         return reconciliation.reconcile3b(id);
     }
 
     @GetMapping("/sales-matches")
     public List<MatchDto> listSalesMatches(@PathVariable UUID id, @RequestParam(required = false) String category) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         var side = GstMatchResult.Side.SALES;
         List<GstMatchResult> rows;
         if (category == null || category.isBlank()) {
@@ -205,7 +205,7 @@ public class GstController {
     /** GST-007: record a manual invoice link with a documented reason. */
     @PostMapping("/manual-links")
     public ManualLinkDto createManualLink(@PathVariable UUID id, @RequestBody ManualLinkRequest req) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         try {
             return ManualLinkDto.from(reconciliation.manualLink(id,
                     req.side() == null ? GstMatchResult.Side.PURCHASE : req.side(),
@@ -221,7 +221,7 @@ public class GstController {
     /** GST-007: manual decisions are logged and reviewable. */
     @GetMapping("/manual-links")
     public List<ManualLinkDto> listManualLinks(@PathVariable UUID id) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         return manualMatches.findByEngagementIdOrderByDecidedAtDesc(id).stream()
                 .map(ManualLinkDto::from).toList();
     }
@@ -229,14 +229,14 @@ public class GstController {
     /** GST-009: entity-level vs registration-level view of the reconciliation. */
     @GetMapping("/registration-summary")
     public List<Map<String, Object>> registrationSummary(@PathVariable UUID id) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         return reconciliation.registrationSummary(id);
     }
 
     /** GST-008: pre-filing correction schedule with owner/action/financial effect columns. */
     @GetMapping(value = "/correction-schedule.csv", produces = "text/csv")
     public ResponseEntity<String> correctionSchedule(@PathVariable UUID id) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.GST);
         var rows = reconciliation.correctionSchedule(id);
         List<List<String>> csvRows = new java.util.ArrayList<>();
         for (var r : rows) {

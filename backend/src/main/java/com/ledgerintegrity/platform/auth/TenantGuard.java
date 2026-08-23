@@ -62,6 +62,21 @@ public class TenantGuard {
                 .orElseThrow(this::notFound);
     }
 
+    /**
+     * Subscription gate: tenancy check plus module entitlement. A clean 403 with the
+     * module's name — never a silent failure — so the UI can show an upgrade state.
+     */
+    public Engagement engagement(UUID engagementId, com.ledgerintegrity.platform.engagement.Module module) {
+        Engagement e = engagement(engagementId);
+        if (!e.getSubscribedModules().contains(module.name())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.FORBIDDEN,
+                    "The " + module.displayName() + " module is not enabled for this engagement."
+                            + " An ADMIN or PARTNER can enable it in the engagement's subscription settings.");
+        }
+        return e;
+    }
+
     public ExceptionCase exception(UUID exceptionId) {
         ExceptionCase x = exceptions.findById(exceptionId).orElseThrow(this::notFound);
         engagement(x.getEngagementId());

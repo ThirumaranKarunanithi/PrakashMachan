@@ -48,21 +48,21 @@ public class VendorController {
     @PostMapping(value = "/vendors", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public VendorImportService.ImportOutcome importVendors(@PathVariable UUID id,
                                                            @RequestParam("file") MultipartFile file) throws IOException {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.VENDOR);
         return outcomeOr422(importService.importVendorMaster(id, name(file, "vendor_master.csv"), file.getBytes()));
     }
 
     @PostMapping(value = "/audit-trail", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public VendorImportService.ImportOutcome importAuditTrail(@PathVariable UUID id,
                                                               @RequestParam("file") MultipartFile file) throws IOException {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.AUDIT_TRAIL);
         return outcomeOr422(importService.importAuditTrail(id, name(file, "audit_trail.csv"), file.getBytes()));
     }
 
     /** ATR-002/003: coverage-gap and configuration-event analysis of the imported audit trail. */
     @PostMapping("/analyze")
     public com.ledgerintegrity.platform.vendor.AuditTrailAnalysisService.CompletenessReport analyze(@PathVariable UUID id) {
-        guard.engagement(id);
+        guard.engagement(id, com.ledgerintegrity.platform.engagement.Module.AUDIT_TRAIL);
         return analysisService.analyze(id);
     }
 

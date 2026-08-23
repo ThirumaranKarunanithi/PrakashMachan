@@ -18,6 +18,7 @@ export interface Engagement {
   createdAt: string;
   populationCount: number;
   importCount: number;
+  modules: string[];
 }
 
 export interface ImportBatch {
